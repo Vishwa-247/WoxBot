@@ -12,9 +12,8 @@ from __future__ import annotations
 import logging
 import time
 
-from sentence_transformers import CrossEncoder
-
 from app.core.config import get_settings
+from sentence_transformers import CrossEncoder
 
 logger = logging.getLogger("woxbot")
 

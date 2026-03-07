@@ -27,8 +27,8 @@ from app.core.logger import setup_logger
 from app.ingestion.chunking import chunk_document
 from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import load_pdf
-from app.retrieval.vector_store import build_and_save, is_already_indexed
 from app.retrieval.bm25_store import build_and_save as build_bm25
+from app.retrieval.vector_store import build_and_save, is_already_indexed
 
 logger = setup_logger("woxbot")
 

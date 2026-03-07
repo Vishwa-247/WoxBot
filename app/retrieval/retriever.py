@@ -14,8 +14,7 @@ import logging
 
 from app.core.config import get_settings
 from app.ingestion.embedder import embed_query
-from app.retrieval import bm25_store
-from app.retrieval import vector_store
+from app.retrieval import bm25_store, vector_store
 
 logger = logging.getLogger("woxbot")
 

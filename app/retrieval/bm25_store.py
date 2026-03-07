@@ -12,9 +12,8 @@ import logging
 import pickle
 from pathlib import Path
 
-from rank_bm25 import BM25Okapi
-
 from app.core.config import get_settings
+from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger("woxbot")
 

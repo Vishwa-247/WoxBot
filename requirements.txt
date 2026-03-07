@@ -14,3 +14,10 @@ numpy>=1.26.0
 # Phase 3 — Hybrid Retrieval + Reranker
 rank_bm25>=0.2.2
 sentence-transformers>=3.0.0
+
+# Phase 4 — LangGraph Agent
+langgraph>=0.3.0
+duckduckgo-search>=6.0.0
+
+# Phase 5 — FastAPI Routes + SSE
+python-multipart>=0.0.9

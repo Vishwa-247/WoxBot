@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     rerank_top_k: int = Field(default=8)
     similarity_threshold: str = Field(default="calibrate_from_data")
 
+    # ── API Auth ─────────────────────────────────────────
+    api_key: str = Field(default="woxbot-dev-key")
+
     # ── Agent / Memory ───────────────────────────────────
     max_memory_turns: int = Field(default=5)
 

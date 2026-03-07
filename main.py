@@ -5,13 +5,30 @@ Main FastAPI application entry-point.
 
 from __future__ import annotations
 
+import hmac
 from contextlib import asynccontextmanager
 
+from app.api.routes.chat import router as chat_router
 from app.api.routes.health import router as health_router
+from app.api.routes.ingest import router as ingest_router
+from app.api.routes.sources import router as sources_router
 from app.core.config import get_settings
 from app.core.logger import logger
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
+
+# ── API Key Auth ─────────────────────────────────────────────────────
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str | None = Security(_api_key_header)):
+    """Validate X-API-Key header against configured key."""
+    settings = get_settings()
+    if not api_key or not hmac.compare_digest(api_key, settings.api_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+    return api_key
 
 
 @asynccontextmanager
@@ -43,7 +60,28 @@ def create_app() -> FastAPI:
     )
 
     # ── Routes ───────────────────────────────────────────
+    # Health — no auth required
     app.include_router(health_router, prefix="/api", tags=["Health"])
+
+    # Protected routes — require X-API-Key header
+    app.include_router(
+        chat_router,
+        prefix="/api",
+        tags=["Chat"],
+        dependencies=[Depends(verify_api_key)],
+    )
+    app.include_router(
+        ingest_router,
+        prefix="/api",
+        tags=["Ingest"],
+        dependencies=[Depends(verify_api_key)],
+    )
+    app.include_router(
+        sources_router,
+        prefix="/api",
+        tags=["Sources"],
+        dependencies=[Depends(verify_api_key)],
+    )
 
     return app
 

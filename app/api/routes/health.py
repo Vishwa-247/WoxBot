@@ -6,9 +6,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
-
 from app.core.config import get_settings
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -18,9 +17,9 @@ async def health_check():
     """Lightweight liveness / readiness probe."""
     settings = get_settings()
     return {
-        "status": "healthy",
+        "status": "ok",
+        "version": "1.0",
         "app": settings.app_name,
-        "version": settings.app_version,
         "environment": settings.app_env,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

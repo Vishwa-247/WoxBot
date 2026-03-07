@@ -9,7 +9,7 @@ import logging
 import sys
 from pathlib import Path
 
-from app.core.config import get_settings, BASE_DIR
+from app.core.config import BASE_DIR, get_settings
 
 
 def setup_logger(name: str = "woxbot") -> logging.Logger:

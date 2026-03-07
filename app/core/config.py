@@ -5,13 +5,11 @@ Loads settings from environment variables with sensible defaults.
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
 from pydantic import Field
-
+from pydantic_settings import BaseSettings
 
 # Project root: WoxBot/
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -34,7 +32,34 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="http://localhost:3000,http://localhost:5173,http://localhost:8080")
 
     # ── Logging ──────────────────────────────────────────
-    log_level: str = Field(default="DEBUG")
+    log_level: str = Field(default="INFO")
+
+    # ── Gemini (Primary LLM + Embeddings) ────────────────
+    gemini_api_key: str = Field(default="")
+
+    # ── Multi-LLM Providers ──────────────────────────────
+    grok_api_key: str = Field(default="")
+    openrouter_api_key: str = Field(default="")
+    local_phi3_url: str = Field(default="http://localhost:11434")
+    default_llm_provider: str = Field(default="gemini")
+    default_llm_model: str = Field(default="gemini-1.5-flash")
+
+    # ── Ingestion / Chunking ─────────────────────────────
+    chunk_size: int = Field(default=400)
+    chunk_overlap: int = Field(default=80)
+    embedding_model_version: str = Field(default="text-embedding-004")
+
+    # ── Retrieval ────────────────────────────────────────
+    retrieval_top_k: int = Field(default=20)
+    rerank_top_k: int = Field(default=8)
+    similarity_threshold: str = Field(default="calibrate_from_data")
+
+    # ── Agent / Memory ───────────────────────────────────
+    max_memory_turns: int = Field(default=5)
+
+    # ── Paths ────────────────────────────────────────────
+    vector_db_path: str = Field(default="./vector_db")
+    data_raw_path: str = Field(default="./data/raw")
 
     model_config = {
         "env_file": str(BASE_DIR / ".env"),

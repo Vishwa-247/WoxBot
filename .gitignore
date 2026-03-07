@@ -33,6 +33,15 @@ logs/
 
 # Data
 data/raw/*
-data/vectorstore/*
+data/processed/*
+vector_db/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!vector_db/.gitkeep
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
 !data/raw/.gitkeep
 !data/vectorstore/.gitkeep

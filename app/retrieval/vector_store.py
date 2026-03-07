@@ -14,7 +14,6 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-
 from app.core.config import get_settings
 from app.ingestion.chunking import Chunk
 

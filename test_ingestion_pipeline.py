@@ -17,12 +17,12 @@ if str(PROJECT_ROOT) not in sys.path:
 def test_imports():
     """Test that all Phase 2 modules import correctly."""
     print("[1/4] Testing imports...")
-    from app.ingestion.loader import load_pdf, PDFDocument, PageContent
-    from app.ingestion.chunking import chunk_document, Chunk, _is_heading
-    from app.ingestion.embedder import embed_texts, embed_query, embed_chunks
-    from app.retrieval.vector_store import (
-        build_and_save, load_index, search, compute_file_hash, is_already_indexed
-    )
+    from app.ingestion.chunking import Chunk, _is_heading, chunk_document
+    from app.ingestion.embedder import embed_chunks, embed_query, embed_texts
+    from app.ingestion.loader import PageContent, PDFDocument, load_pdf
+    from app.retrieval.vector_store import (build_and_save, compute_file_hash,
+                                            is_already_indexed, load_index,
+                                            search)
     print("  ✓ All Phase 2 modules import successfully.\n")
 
 
@@ -50,8 +50,8 @@ def test_heading_detection():
 def test_chunker_with_mock_data():
     """Test chunking with a mock PDFDocument."""
     print("[3/4] Testing section-based chunker...")
-    from app.ingestion.loader import PDFDocument, PageContent
     from app.ingestion.chunking import chunk_document
+    from app.ingestion.loader import PageContent, PDFDocument
 
     # Create a mock PDF with clear sections
     mock_pdf = PDFDocument(
@@ -118,7 +118,7 @@ def test_chunker_with_mock_data():
 def test_scanned_page_detection():
     """Test that scanned pages are flagged."""
     print("[4/4] Testing scanned page detection...")
-    from app.ingestion.loader import PDFDocument, PageContent
+    from app.ingestion.loader import PageContent, PDFDocument
 
     mock_pdf = PDFDocument(
         filename="mixed.pdf",

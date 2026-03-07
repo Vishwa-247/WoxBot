@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     # ── Ingestion / Chunking ─────────────────────────────
     chunk_size: int = Field(default=400)
     chunk_overlap: int = Field(default=80)
-    embedding_provider: str = Field(default="gemini")
-    embedding_model_version: str = Field(default="text-embedding-004")
+    embedding_provider: str = Field(default="openrouter")
+    embedding_model_version: str = Field(default="text-embedding-3-small")
 
     # ── Retrieval ────────────────────────────────────────
     retrieval_top_k: int = Field(default=20)

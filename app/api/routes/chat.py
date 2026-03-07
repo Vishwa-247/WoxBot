@@ -63,69 +63,76 @@ async def _generate_stream(
     chunks = []
     answer_text = ""
 
-    if route == "calculation":
-        # Calculator — no streaming needed, instant result
-        result = safe_calculate(query)
-        yield f"data: {result}\n\n"
-        answer_text = result
+    try:
+        if route == "calculation":
+            # Calculator — no streaming needed, instant result
+            result = safe_calculate(query)
+            yield f"data: {result}\n\n"
+            answer_text = result
 
-    elif route == "unclear":
-        # Clarify — stream the clarification
-        prompt = CLARIFY_PROMPT.format(query=query)
-        async for token in llm.stream(prompt, provider=provider, model=model):
-            yield f"data: {token}\n\n"
-            answer_text += token
-
-    elif route == "web_search":
-        # Web search — get results, then stream synthesis
-        results = web_search(query)
-        formatted = format_search_results(results)
-        if not results:
-            msg = "I couldn't find relevant web search results. Please try rephrasing your query."
-            yield f"data: {msg}\n\n"
-            answer_text = msg
-        else:
-            prompt = WEB_SEARCH_PROMPT.format(search_results=formatted, query=query)
-            async for token in llm.stream(prompt, provider=provider, model=model):
-                yield f"data: {token}\n\n"
-                answer_text += token
-            sources = [
-                {"title": r["title"], "url": r["href"], "snippet": r["body"][:200]}
-                for r in results
-            ]
-
-    elif route == "summarize":
-        # Summarize — retrieve chunks, then stream
-        candidates = hybrid_retrieve(query, top_k=30)
-        chunks = rerank(query, candidates, top_k=8)
-        if not chunks:
-            msg = "I don't have enough document content to summarize."
-            yield f"data: {msg}\n\n"
-            answer_text = msg
-        else:
-            content = "\n\n---\n\n".join(c.get("text", "") for c in chunks)
-            prompt = SUMMARIZER_PROMPT.format(content=content)
+        elif route == "unclear":
+            # Clarify — stream the clarification
+            prompt = CLARIFY_PROMPT.format(query=query)
             async for token in llm.stream(prompt, provider=provider, model=model):
                 yield f"data: {token}\n\n"
                 answer_text += token
 
-    else:
-        # document_qa (default) — full RAG pipeline with streaming
-        candidates = hybrid_retrieve(query)
-        chunks = rerank(query, candidates)
-        if not chunks:
-            msg = "I don't have enough information in the uploaded documents to answer this."
-            yield f"data: {msg}\n\n"
-            answer_text = msg
+        elif route == "web_search":
+            # Web search — get results, then stream synthesis
+            results = web_search(query)
+            formatted = format_search_results(results)
+            if not results:
+                msg = "I couldn't find relevant web search results. Please try rephrasing your query."
+                yield f"data: {msg}\n\n"
+                answer_text = msg
+            else:
+                prompt = WEB_SEARCH_PROMPT.format(search_results=formatted, query=query)
+                async for token in llm.stream(prompt, provider=provider, model=model):
+                    yield f"data: {token}\n\n"
+                    answer_text += token
+                sources = [
+                    {"title": r["title"], "url": r["href"], "snippet": r["body"][:200]}
+                    for r in results
+                ]
+
+        elif route == "summarize":
+            # Summarize — retrieve chunks, then stream
+            candidates = hybrid_retrieve(query, top_k=30)
+            chunks = rerank(query, candidates, top_k=8)
+            if not chunks:
+                msg = "I don't have enough document content to summarize."
+                yield f"data: {msg}\n\n"
+                answer_text = msg
+            else:
+                content = "\n\n---\n\n".join(c.get("text", "") for c in chunks)
+                prompt = SUMMARIZER_PROMPT.format(content=content)
+                async for token in llm.stream(prompt, provider=provider, model=model):
+                    yield f"data: {token}\n\n"
+                    answer_text += token
+
         else:
-            context = "\n\n---\n\n".join(
-                f"[{c.get('section_title', 'N/A')}]\n{c.get('text', '')}"
-                for c in chunks
-            )
-            prompt = RAG_SYSTEM_PROMPT.format(context=context, query=query)
-            async for token in llm.stream(prompt, provider=provider, model=model):
-                yield f"data: {token}\n\n"
-                answer_text += token
+            # document_qa (default) — full RAG pipeline with streaming
+            candidates = hybrid_retrieve(query)
+            chunks = rerank(query, candidates)
+            if not chunks:
+                msg = "I don't have enough information in the uploaded documents to answer this."
+                yield f"data: {msg}\n\n"
+                answer_text = msg
+            else:
+                context = "\n\n---\n\n".join(
+                    f"[{c.get('section_title', 'N/A')}]\n{c.get('text', '')}"
+                    for c in chunks
+                )
+                prompt = RAG_SYSTEM_PROMPT.format(context=context, query=query)
+                async for token in llm.stream(prompt, provider=provider, model=model):
+                    yield f"data: {token}\n\n"
+                    answer_text += token
+
+    except Exception as e:
+        logger.error("LLM provider error during stream: %s", e)
+        err_msg = f"⚠️ LLM provider error: {type(e).__name__}. Please try a different model from the selector."
+        yield f"data: {err_msg}\n\n"
+        answer_text += err_msg
 
     # Post-hoc source mapping for RAG-based routes
     if route in ("document_qa", "summarize") and chunks and answer_text:

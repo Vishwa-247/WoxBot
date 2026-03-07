@@ -58,7 +58,10 @@ const STORAGE_KEY = "woxbot-model";
 function loadSavedModel() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && saved.id) return saved;
+    // Validate saved model still exists in the current MODELS list
+    if (saved && saved.id && MODELS.some((m) => m.id === saved.id)) {
+      return saved;
+    }
   } catch {}
   return MODELS[0];
 }

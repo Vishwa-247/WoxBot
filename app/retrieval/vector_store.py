@@ -65,6 +65,19 @@ def is_already_indexed(file_path: str | Path) -> bool:
     return file_hash in metadata.get("document_hashes", {})
 
 
+def has_documents() -> bool:
+    """Return True if the FAISS index exists and contains at least one vector."""
+    _, index_path, _ = _get_paths()
+    if not index_path.exists():
+        return False
+    try:
+        import faiss
+        idx = faiss.read_index(str(index_path))
+        return idx.ntotal > 0
+    except Exception:
+        return False
+
+
 # ── FAISS Index Operations ────────────────────────────────────────────
 
 

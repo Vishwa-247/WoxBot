@@ -1,59 +1,110 @@
-import { useEffect, useRef } from 'react';
-import MessageBubble from './MessageBubble';
-import InputBar from './InputBar';
+import { useEffect, useRef } from "react";
+import InputBar from "./InputBar";
+import MessageBubble from "./MessageBubble";
 
-const SUGGESTION_QUERIES = [
-  'What is bubble sort from my notes?',
-  'Calculate my CGPA: 8.5, 9.2, 7.8, 8.1',
-  'Summarize my uploaded syllabus',
-  'What are the latest trends in AI?',
+const SUGGESTIONS = [
+  { icon: "📚", text: "What is bubble sort from my notes?" },
+  { icon: "📋", text: "Summarize my uploaded syllabus" },
+  { icon: "🔍", text: "Explain the key concepts in chapter 3" },
+  { icon: "🌐", text: "What are the latest trends in AI?" },
 ];
 
-/**
- * ChatWindow — reads state from hooks only.
- * NEVER opens EventSource or calls fetch directly.
- */
-export default function ChatWindow({ messages, isStreaming, onSend, onStop }) {
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  return "Good Evening";
+}
+
+export default function ChatWindow({
+  messages,
+  isStreaming,
+  onSend,
+  onStop,
+  onAttach,
+  uploading,
+  uploadProgress,
+  uploadResult,
+  uploadError,
+  onUploadDismiss,
+}) {
   const bottomRef = useRef(null);
 
-  // Auto-scroll to bottom whenever messages change or tokens stream in
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      {/* Message area */}
-      <div className="flex-1 overflow-y-auto px-2 py-6 scroll-smooth">
+    <div className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-[#111113]">
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-8 lg:px-20 xl:px-40">
         {messages.length === 0 ? (
-          /* Empty state / welcome screen */
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <div className="text-6xl mb-4 select-none">🤖</div>
-            <h2 className="text-2xl font-semibold text-gray-200 mb-2">Welcome to WoxBot</h2>
-            <p className="text-gray-500 text-sm max-w-md leading-relaxed">
-              Upload your Woxsen University PDFs using the sidebar, then ask anything about
-              your course materials. All answers are grounded in your documents — zero hallucination.
+          <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto">
+            <p className="text-sm text-zinc-400 dark:text-zinc-500 mb-1">
+              {getGreeting()} 👋
             </p>
-            <div className="mt-8 grid gap-2 w-full max-w-md">
-              {SUGGESTION_QUERIES.map((q) => (
+
+            <h1 className="text-2xl md:text-3xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2 leading-tight">
+              How Can I Assist You Today?
+            </h1>
+
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-8">
+              Upload documents and ask questions — powered by RAG
+            </p>
+
+            <div className="w-full max-w-xl mb-6">
+              <InputBar
+                onSend={onSend}
+                isStreaming={isStreaming}
+                onStop={onStop}
+                onAttach={onAttach}
+                uploading={uploading}
+                uploadProgress={uploadProgress}
+                uploadResult={uploadResult}
+                uploadError={uploadError}
+                onUploadDismiss={onUploadDismiss}
+              />
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2">
+              {SUGGESTIONS.map((s) => (
                 <button
-                  key={q}
-                  onClick={() => onSend(q)}
-                  className="text-left px-4 py-2.5 text-sm text-gray-400 bg-gray-800/60 hover:bg-gray-800 rounded-xl border border-gray-700 hover:border-gray-600 transition"
+                  key={s.text}
+                  onClick={() => onSend(s.text)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors"
                 >
-                  {q}
+                  <span>{s.icon}</span>
+                  <span>{s.text}</span>
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+          <div className="max-w-2xl mx-auto space-y-1 pb-8">
+            {messages.map((msg) => (
+              <MessageBubble key={msg.id} message={msg} />
+            ))}
+            <div ref={bottomRef} className="h-4" />
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
-      {/* Input bar pinned at bottom */}
-      <InputBar onSend={onSend} isStreaming={isStreaming} onStop={onStop} />
+      {messages.length > 0 && (
+        <div className="border-t border-zinc-100 dark:border-zinc-800/50 bg-white dark:bg-[#111113]">
+          <div className="max-w-2xl mx-auto px-4 md:px-8">
+            <InputBar
+              onSend={onSend}
+              isStreaming={isStreaming}
+              onStop={onStop}
+              onAttach={onAttach}
+              uploading={uploading}
+              uploadProgress={uploadProgress}
+              uploadResult={uploadResult}
+              uploadError={uploadError}
+              onUploadDismiss={onUploadDismiss}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

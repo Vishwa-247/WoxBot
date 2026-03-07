@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { uploadPDF } from '../services/api';
+import { useCallback, useState } from "react";
+import { uploadPDF } from "../services/api";
 
 /**
  * useUpload — manages PDF upload state and progress.
@@ -13,8 +13,8 @@ export function useUpload(onSuccess) {
 
   const upload = useCallback(
     async (file) => {
-      if (!file || file.type !== 'application/pdf') {
-        setError('Please select a valid PDF file.');
+      if (!file || file.type !== "application/pdf") {
+        setError("Please select a valid PDF file.");
         return;
       }
 
@@ -28,13 +28,13 @@ export function useUpload(onSuccess) {
         setResult(data);
         if (onSuccess) onSuccess(data);
       } catch (err) {
-        setError(err.response?.data?.detail || err.message || 'Upload failed.');
+        setError(err.response?.data?.detail || err.message || "Upload failed.");
       } finally {
         setUploading(false);
         setProgress(0);
       }
     },
-    [onSuccess]
+    [onSuccess],
   );
 
   const reset = useCallback(() => {

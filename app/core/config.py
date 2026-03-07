@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     grok_api_key: str = Field(default="")
     openrouter_api_key: str = Field(default="")
     local_phi3_url: str = Field(default="http://localhost:11434")
-    default_llm_provider: str = Field(default="gemini")
-    default_llm_model: str = Field(default="gemini-1.5-flash")
+    default_llm_provider: str = Field(default="groq")
+    default_llm_model: str = Field(default="llama-3.1-8b-instant")
 
     # ── Ingestion / Chunking ─────────────────────────────
     chunk_size: int = Field(default=400)

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import LoadingDots from "./LoadingDots";
@@ -78,10 +79,25 @@ const mdComponents = {
 
 export default function MessageBubble({ message }) {
   const isUser = message.role === "user";
+  const [collapsed, setCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const hasSources =
+    !isUser &&
+    !message.streaming &&
+    message.sources &&
+    message.sources.length > 0;
+
+  // Auto-collapse sources after 5 seconds
+  useEffect(() => {
+    if (!hasSources) return;
+    const timer = setTimeout(() => setCollapsed(true), 5000);
+    return () => clearTimeout(timer);
+  }, [hasSources]);
 
   if (isUser) {
     return (
-      <div className="flex justify-end mb-5">
+      <div className="flex justify-end mb-3">
         <div className="max-w-[80%] bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
           {message.content}
         </div>
@@ -89,11 +105,8 @@ export default function MessageBubble({ message }) {
     );
   }
 
-  const renderCitations = () => {
-    if (!message.sources || message.sources.length === 0 || message.streaming)
-      return null;
-
-    const uniqueSources = [];
+  const uniqueSources = [];
+  if (hasSources) {
     const seen = new Set();
     message.sources.forEach((src) => {
       if (!seen.has(src.filename)) {
@@ -101,10 +114,28 @@ export default function MessageBubble({ message }) {
         uniqueSources.push(src);
       }
     });
+  }
 
+  const renderCitations = () => {
+    if (!hasSources || uniqueSources.length === 0) return null;
+
+    // Collapsed state — small circle pill
+    if (collapsed && !expanded) {
+      return (
+        <button
+          onClick={() => setExpanded(true)}
+          className="mt-1.5 inline-flex items-center justify-center w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+          title={`${uniqueSources.length} source${uniqueSources.length > 1 ? "s" : ""}`}
+        >
+          {uniqueSources.length}
+        </button>
+      );
+    }
+
+    // Expanded / not-yet-collapsed state
     return (
-      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap gap-1.5 items-center">
-        <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 mr-1">
+      <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+        <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 mr-0.5">
           Sources:
         </span>
         {uniqueSources.map((src, i) => (
@@ -128,12 +159,20 @@ export default function MessageBubble({ message }) {
             </div>
           </div>
         ))}
+        {collapsed && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 ml-1 transition-colors"
+          >
+            ✕
+          </button>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="flex gap-3 mb-5">
+    <div className="flex gap-3 mb-3">
       <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-sm shrink-0 mt-0.5 select-none">
         🤖
       </div>

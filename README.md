@@ -150,18 +150,18 @@ WoxBot/
 
 ### Groq (Fast Inference)
 
-| Model               | ID                        |
-| ------------------- | ------------------------- |
-| Llama 3.1 8B        | `llama-3.1-8b-instant`    |
-| Llama 3.3 70B       | `llama-3.3-70b-versatile` |
-| Mixtral 8x7B        | `mixtral-8x7b-32768`      |
-| Gemma 2 9B          | `gemma2-9b-it`            |
+| Model         | ID                        |
+| ------------- | ------------------------- |
+| Llama 3.1 8B  | `llama-3.1-8b-instant`    |
+| Llama 3.3 70B | `llama-3.3-70b-versatile` |
+| Mixtral 8x7B  | `mixtral-8x7b-32768`      |
+| Gemma 2 9B    | `gemma2-9b-it`            |
 
 ### OpenRouter (Free Tier)
 
-| Model                | ID                                         |
-| -------------------- | ------------------------------------------ |
-| Gemini 2.0 Flash     | `google/gemini-2.0-flash-exp:free`         |
-| DeepSeek V3          | `deepseek/deepseek-chat-v3-0324:free`      |
-| Llama 3.3 70B        | `meta-llama/llama-3.3-70b-instruct:free`   |
-| Qwen3 235B           | `qwen/qwen3-235b-a22b:free`               |
+| Model            | ID                                       |
+| ---------------- | ---------------------------------------- |
+| Gemini 2.0 Flash | `google/gemini-2.0-flash-exp:free`       |
+| DeepSeek V3      | `deepseek/deepseek-chat-v3-0324:free`    |
+| Llama 3.3 70B    | `meta-llama/llama-3.3-70b-instruct:free` |
+| Qwen3 235B       | `qwen/qwen3-235b-a22b:free`              |

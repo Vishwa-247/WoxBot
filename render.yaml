@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: woxbot-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GROK_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: DEFAULT_LLM_PROVIDER
+        value: groq
+      - key: DEFAULT_LLM_MODEL
+        value: llama-3.1-8b-instant
+      - key: EMBEDDING_PROVIDER
+        value: openrouter
+      - key: EMBEDDING_MODEL_VERSION
+        value: text-embedding-3-small
+    disk:
+      name: woxbot-data
+      mountPath: /app/vector_db
+      sizeGB: 1

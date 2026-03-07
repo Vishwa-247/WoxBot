@@ -1,0 +1,242 @@
+[
+  {
+    "id": 1,
+    "question": "What is the syllabus for Data Structures?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 2,
+    "question": "Explain the key concepts covered in Unit 1.",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 3,
+    "question": "What are the lab experiments listed in the manual?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 4,
+    "question": "Summarize the course objectives and outcomes.",
+    "category": "summarize",
+    "difficulty": "medium"
+  },
+  {
+    "id": 5,
+    "question": "What is bubble sort and how does it work according to the notes?",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 6,
+    "question": "List the textbooks and reference books mentioned.",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 7,
+    "question": "What is the exam pattern for this course?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 8,
+    "question": "Explain the difference between stack and queue as described in the document.",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 9,
+    "question": "What topics are covered in Unit 3?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 10,
+    "question": "Describe the internal assessment criteria mentioned in the syllabus.",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 11,
+    "question": "What is a linked list according to the uploaded notes?",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 12,
+    "question": "How many credits does this course carry?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 13,
+    "question": "Summarize the key points from the first chapter.",
+    "category": "summarize",
+    "difficulty": "medium"
+  },
+  {
+    "id": 14,
+    "question": "What programming languages are mentioned in the lab manual?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 15,
+    "question": "Explain the concept of time complexity from the document.",
+    "category": "document_qa",
+    "difficulty": "hard"
+  },
+  {
+    "id": 16,
+    "question": "What are the prerequisites for this course?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 17,
+    "question": "What is the marking scheme for the semester exam?",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 18,
+    "question": "List all the units and their topics.",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 19,
+    "question": "What assignments are mentioned in the document?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 20,
+    "question": "Provide a brief overview of what this document covers.",
+    "category": "summarize",
+    "difficulty": "easy"
+  },
+  {
+    "id": 21,
+    "question": "What is the definition of an algorithm as given in the notes?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 22,
+    "question": "How is the final grade calculated?",
+    "category": "document_qa",
+    "difficulty": "medium"
+  },
+  {
+    "id": 23,
+    "question": "Explain recursion as described in the uploaded material.",
+    "category": "document_qa",
+    "difficulty": "hard"
+  },
+  {
+    "id": 24,
+    "question": "What are the learning outcomes listed?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 25,
+    "question": "Compare the topics in Unit 2 and Unit 4.",
+    "category": "document_qa",
+    "difficulty": "hard"
+  },
+  {
+    "id": 26,
+    "question": "What is the total number of hours for this course?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 27,
+    "question": "Summarize the practical exercises from the lab manual.",
+    "category": "summarize",
+    "difficulty": "medium"
+  },
+  {
+    "id": 28,
+    "question": "What faculty members are associated with this course?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 29,
+    "question": "Explain binary search tree operations from the notes.",
+    "category": "document_qa",
+    "difficulty": "hard"
+  },
+  {
+    "id": 30,
+    "question": "What tools or software are required for the lab?",
+    "category": "document_qa",
+    "difficulty": "easy"
+  },
+  {
+    "id": 31,
+    "question": "Calculate my CGPA: 8.5, 9.0, 7.5, 8.0, 9.5",
+    "category": "calculation",
+    "difficulty": "easy"
+  },
+  {
+    "id": 32,
+    "question": "What is the average of 85, 90, 78, 92, 88?",
+    "category": "calculation",
+    "difficulty": "easy"
+  },
+  {
+    "id": 33,
+    "question": "Calculate the percentage of 450 out of 500.",
+    "category": "calculation",
+    "difficulty": "easy"
+  },
+  {
+    "id": 34,
+    "question": "What is 75% of 800?",
+    "category": "calculation",
+    "difficulty": "easy"
+  },
+  {
+    "id": 35,
+    "question": "Find the GPA from these marks: 9.0, 8.5, 7.0, 8.8, 9.2, 8.0",
+    "category": "calculation",
+    "difficulty": "easy"
+  },
+  {
+    "id": 36,
+    "question": "What are the latest trends in artificial intelligence in 2026?",
+    "category": "web_search",
+    "difficulty": "easy"
+  },
+  {
+    "id": 37,
+    "question": "What recent announcements has Woxsen University made?",
+    "category": "web_search",
+    "difficulty": "medium"
+  },
+  {
+    "id": 38,
+    "question": "What is the current ranking of Woxsen University?",
+    "category": "web_search",
+    "difficulty": "easy"
+  },
+  {
+    "id": 39,
+    "question": "What are the trending topics in machine learning today?",
+    "category": "web_search",
+    "difficulty": "easy"
+  },
+  {
+    "id": 40,
+    "question": "Give me an overview of all my uploaded documents.",
+    "category": "summarize",
+    "difficulty": "easy"
+  }
+]

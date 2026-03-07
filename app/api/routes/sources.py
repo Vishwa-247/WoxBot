@@ -12,12 +12,11 @@ import logging
 from collections import Counter
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
-
 from app.api.schemas import DeleteResponse, DocumentInfo, SourcesListResponse
 from app.core.config import get_settings
 from app.retrieval.bm25_store import build_and_save as rebuild_bm25
 from app.retrieval.vector_store import delete_document
+from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger("woxbot")
 

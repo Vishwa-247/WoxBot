@@ -180,7 +180,7 @@ def map_sources(answer: str, chunks: list[dict]) -> list[dict]:
     if not chunks or not answer.strip():
         return []
 
-    from app.ingestion.embedder import embed_texts, embed_query
+    from app.ingestion.embedder import embed_query, embed_texts
 
     # Split answer into sentences
     sentences = re.split(r"(?<=[.!?])\s+", answer.strip())

@@ -12,20 +12,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.agent.nodes import (calc_node, clarify_node, memory_node, rag_node,
+                             rewriter_node, router_node, search_node,
+                             summarizer_node, validator_node)
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
-
-from app.agent.nodes import (
-    calc_node,
-    clarify_node,
-    memory_node,
-    rag_node,
-    rewriter_node,
-    router_node,
-    search_node,
-    summarizer_node,
-    validator_node,
-)
 
 logger = logging.getLogger("woxbot")
 

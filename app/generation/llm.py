@@ -17,9 +17,8 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from openai import AsyncOpenAI, OpenAI
-
 from app.core.config import get_settings
+from openai import AsyncOpenAI, OpenAI
 
 logger = logging.getLogger("woxbot")
 

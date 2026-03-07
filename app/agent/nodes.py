@@ -17,20 +17,12 @@ import logging
 from typing import Any
 
 from app.agent import memory, router
-from app.agent.tools import (
-    format_search_results,
-    map_sources,
-    safe_calculate,
-    web_search,
-)
+from app.agent.tools import (format_search_results, map_sources,
+                             safe_calculate, web_search)
 from app.generation import llm
-from app.generation.prompt import (
-    CLARIFY_PROMPT,
-    RAG_SYSTEM_PROMPT,
-    REWRITER_PROMPT,
-    SUMMARIZER_PROMPT,
-    WEB_SEARCH_PROMPT,
-)
+from app.generation.prompt import (CLARIFY_PROMPT, RAG_SYSTEM_PROMPT,
+                                   REWRITER_PROMPT, SUMMARIZER_PROMPT,
+                                   WEB_SEARCH_PROMPT)
 from app.generation.validator import validate
 from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve

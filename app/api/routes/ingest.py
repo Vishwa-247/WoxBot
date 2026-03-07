@@ -11,8 +11,6 @@ import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile
-
 from app.api.schemas import IngestResponse
 from app.core.config import get_settings
 from app.ingestion.chunking import chunk_document
@@ -20,6 +18,7 @@ from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import load_pdf
 from app.retrieval.bm25_store import build_and_save as build_bm25
 from app.retrieval.vector_store import build_and_save, is_already_indexed
+from fastapi import APIRouter, File, UploadFile
 
 logger = logging.getLogger("woxbot")
 

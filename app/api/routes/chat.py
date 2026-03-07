@@ -15,24 +15,20 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
-
+from app.agent import memory
+from app.agent import router as agent_router
 from app.agent.graph import run_agent
-from app.agent.tools import map_sources
+from app.agent.tools import (format_search_results, map_sources,
+                             safe_calculate, web_search)
 from app.api.schemas import ChatRequest, ChatResponse
 from app.generation import llm
-from app.generation.prompt import (
-    CLARIFY_PROMPT,
-    RAG_SYSTEM_PROMPT,
-    SUMMARIZER_PROMPT,
-    WEB_SEARCH_PROMPT,
-)
-from app.agent import memory, router as agent_router
-from app.agent.tools import format_search_results, safe_calculate, web_search
+from app.generation.prompt import (CLARIFY_PROMPT, RAG_SYSTEM_PROMPT,
+                                   SUMMARIZER_PROMPT, WEB_SEARCH_PROMPT)
 from app.generation.validator import validate
 from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger("woxbot")
 

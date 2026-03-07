@@ -17,7 +17,6 @@ import logging
 import re
 
 import numpy as np
-
 from app.core.config import get_settings
 from app.generation.llm import generate
 from app.generation.prompt import VALIDATOR_PROMPT

@@ -15,10 +15,9 @@ import logging
 import time
 
 import numpy as np
-from openai import OpenAI
-
 from app.core.config import get_settings
 from app.ingestion.chunking import Chunk
+from openai import OpenAI
 
 logger = logging.getLogger("woxbot")
 

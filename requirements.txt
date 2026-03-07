@@ -10,3 +10,7 @@ openai>=1.40.0
 PyMuPDF>=1.24.0
 faiss-cpu>=1.8.0
 numpy>=1.26.0
+
+# Phase 3 — Hybrid Retrieval + Reranker
+rank_bm25>=0.2.2
+sentence-transformers>=3.0.0

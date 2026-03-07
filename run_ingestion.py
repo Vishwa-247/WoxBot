@@ -28,6 +28,7 @@ from app.ingestion.chunking import chunk_document
 from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import load_pdf
 from app.retrieval.vector_store import build_and_save, is_already_indexed
+from app.retrieval.bm25_store import build_and_save as build_bm25
 
 logger = setup_logger("woxbot")
 
@@ -96,6 +97,12 @@ def ingest_all() -> None:
         added = build_and_save(chunks, embeddings, pdf_path)
         total_chunks += added
         print(f"  ✓ Indexed: {added} chunks added to FAISS\n")
+
+    # ── Build BM25 index ──────────────────────────────────
+    if total_chunks > 0:
+        print("  Building BM25 keyword index...")
+        bm25_count = build_bm25()
+        print(f"  ✓ BM25 index built: {bm25_count} documents\n")
 
     # ── Summary ──────────────────────────────────────────
     print(f"\n{'='*60}")

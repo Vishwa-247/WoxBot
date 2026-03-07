@@ -7,6 +7,7 @@ Stack: React + FastAPI + LangGraph + Gemini + FAISS + MCP
 ## Quick Start
 
 ### Backend
+
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -23,6 +24,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
 npm install
@@ -66,19 +68,19 @@ WoxBot/
 
 ## API Endpoints
 
-| Method | Endpoint              | Auth     | Description           |
-|--------|-----------------------|----------|-----------------------|
-| GET    | `/api/health`         | None     | `{status: "ok", version: "1.0"}` |
-| POST   | `/api/ingest`         | Required | Upload PDF → index    |
-| POST   | `/api/chat`           | Required | SSE streaming chat    |
-| GET    | `/api/sources`        | Required | List indexed docs     |
-| DELETE | `/api/sources/{id}`   | Required | Remove doc + vectors  |
+| Method | Endpoint            | Auth     | Description                      |
+| ------ | ------------------- | -------- | -------------------------------- |
+| GET    | `/api/health`       | None     | `{status: "ok", version: "1.0"}` |
+| POST   | `/api/ingest`       | Required | Upload PDF → index               |
+| POST   | `/api/chat`         | Required | SSE streaming chat               |
+| GET    | `/api/sources`      | Required | List indexed docs                |
+| DELETE | `/api/sources/{id}` | Required | Remove doc + vectors             |
 
 ## Multi-LLM Providers
 
-| Provider     | Model                    | Free?            |
-|-------------|--------------------------|------------------|
-| Gemini       | gemini-1.5-flash         | Yes (15 req/min) |
-| Grok         | grok-3                   | Trial credits    |
-| OpenRouter   | google/gemini-flash-1.5  | Free tier        |
-| PHI-3 Local  | phi3 (Ollama)            | Offline          |
+| Provider    | Model                   | Free?            |
+| ----------- | ----------------------- | ---------------- |
+| Gemini      | gemini-1.5-flash        | Yes (15 req/min) |
+| Grok        | grok-3                  | Trial credits    |
+| OpenRouter  | google/gemini-flash-1.5 | Free tier        |
+| PHI-3 Local | phi3 (Ollama)           | Offline          |

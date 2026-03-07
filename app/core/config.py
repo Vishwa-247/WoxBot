@@ -12,7 +12,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 # Project root: WoxBot/
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):

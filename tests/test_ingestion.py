@@ -29,7 +29,7 @@ class TestLoader:
 
     def test_load_non_pdf(self, tmp_path):
         """Loader should handle non-PDF files (PyMuPDF may open them)."""
-        from app.ingestion.loader import load_pdf, PDFDocument
+        from app.ingestion.loader import PDFDocument, load_pdf
 
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("This is not a PDF")
@@ -65,7 +65,7 @@ class TestChunking:
 
     def test_chunk_size_constraint(self):
         """Chunking should produce at least one chunk from a section."""
-        from app.ingestion.chunking import _split_section_into_chunks, Section
+        from app.ingestion.chunking import Section, _split_section_into_chunks
 
         # Create a section with several lines
         lines = ["This is a test sentence number {}.".format(i) for i in range(100)]

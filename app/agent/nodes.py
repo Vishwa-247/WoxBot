@@ -16,13 +16,16 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.agent import memory, router
+from app.agent import mongo_memory as memory
+from app.agent import router
 from app.agent.tools import (format_search_results, map_sources,
                              safe_calculate, web_search)
 from app.generation import llm
-from app.generation.prompt import (CLARIFY_PROMPT, RAG_SYSTEM_PROMPT,
-                                   REWRITER_PROMPT, SUMMARIZER_PROMPT,
-                                   WEB_SEARCH_PROMPT)
+from app.generation.prompt import (CLARIFY_PROMPT, FORMATTING_EXAMPLE,
+                                   RAG_SYSTEM_MSG, RAG_USER_MSG,
+                                   REWRITER_PROMPT, SUMMARIZER_SYSTEM_MSG,
+                                   SUMMARIZER_USER_MSG, WEB_SEARCH_SYSTEM_MSG,
+                                   WEB_SEARCH_USER_MSG)
 from app.generation.validator import validate
 from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve
@@ -112,11 +115,19 @@ def rag_node(state: dict[str, Any]) -> dict[str, Any]:
     )
 
     # Step 4: Generate answer with anti-hallucination prompt
-    prompt = RAG_SYSTEM_PROMPT.format(context=context, query=query)
+    session_id = state.get("session_id", "default")
+    history_text = memory.get_history(session_id)
+    messages = [
+        {"role": "system", "content": RAG_SYSTEM_MSG},
+        {"role": "user", "content": RAG_USER_MSG.format(
+            example=FORMATTING_EXAMPLE, context=context,
+            memory=history_text, query=query)},
+    ]
     answer = llm.generate(
-        prompt,
+        "",
         provider=state.get("provider"),
         model=state.get("model"),
+        messages=messages,
     )
 
     # Step 5: Post-hoc source mapping (Fix 3 — NEVER inline citations)
@@ -144,11 +155,15 @@ def search_node(state: dict[str, Any]) -> dict[str, Any]:
         }
 
     # Step 2: LLM synthesis
-    prompt = WEB_SEARCH_PROMPT.format(search_results=formatted, query=query)
+    messages = [
+        {"role": "system", "content": WEB_SEARCH_SYSTEM_MSG},
+        {"role": "user", "content": WEB_SEARCH_USER_MSG.format(search_results=formatted, query=query)},
+    ]
     answer = llm.generate(
-        prompt,
+        "",
         provider=state.get("provider"),
         model=state.get("model"),
+        messages=messages,
     )
 
     # Web sources
@@ -189,11 +204,15 @@ def summarizer_node(state: dict[str, Any]) -> dict[str, Any]:
         }
 
     content = "\n\n---\n\n".join(c.get("text", "") for c in top_chunks)
-    prompt = SUMMARIZER_PROMPT.format(content=content)
+    messages = [
+        {"role": "system", "content": SUMMARIZER_SYSTEM_MSG},
+        {"role": "user", "content": SUMMARIZER_USER_MSG.format(content=content)},
+    ]
     answer = llm.generate(
-        prompt,
+        "",
         provider=state.get("provider"),
         model=state.get("model"),
+        messages=messages,
     )
 
     sources = map_sources(answer, top_chunks)

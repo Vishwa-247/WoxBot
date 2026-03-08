@@ -28,7 +28,9 @@ from app.core.config import get_settings
 from app.core.logger import setup_logger
 from app.evaluation.metrics import score_batch
 from app.generation import llm
-from app.generation.prompt import RAG_SYSTEM_PROMPT, SUMMARIZER_PROMPT, WEB_SEARCH_PROMPT
+from app.generation.prompt import (FORMATTING_EXAMPLE, RAG_SYSTEM_MSG,
+                                   RAG_USER_MSG, SUMMARIZER_SYSTEM_MSG,
+                                   SUMMARIZER_USER_MSG)
 from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve
 
@@ -57,7 +59,9 @@ def _run_document_qa(question: str, provider: str | None = None, model: str | No
         f"[{c.get('section_title', 'N/A')}]\n{c.get('text', '')}"
         for c in chunks
     )
-    prompt = RAG_SYSTEM_PROMPT.format(context=context, query=question)
+    prompt = RAG_SYSTEM_MSG + "\n\n" + RAG_USER_MSG.format(
+        example=FORMATTING_EXAMPLE, context=context,
+        memory="(No prior conversation)", query=question)
     answer = llm.generate(prompt, provider=provider, model=model)
 
     return {
@@ -82,7 +86,7 @@ def _run_summarize(question: str, provider: str | None = None, model: str | None
         }
 
     content = "\n\n---\n\n".join(c.get("text", "") for c in chunks)
-    prompt = SUMMARIZER_PROMPT.format(content=content)
+    prompt = SUMMARIZER_SYSTEM_MSG + "\n\n" + SUMMARIZER_USER_MSG.format(content=content)
     answer = llm.generate(prompt, provider=provider, model=model)
 
     return {

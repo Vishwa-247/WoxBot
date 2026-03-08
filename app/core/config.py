@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # ── Agent / Memory ───────────────────────────────────
     max_memory_turns: int = Field(default=5)
 
+    # ── MongoDB (conversation memory persistence) ────────────────────
+    mongodb_uri: str = Field(default="")
+
     # ── Paths ────────────────────────────────────────────
     vector_db_path: str = Field(default="./vector_db")
     data_raw_path: str = Field(default="./data/raw")

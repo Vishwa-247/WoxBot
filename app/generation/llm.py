@@ -92,14 +92,22 @@ async def _stream_gemini(prompt: str, model: str, **kwargs: Any) -> AsyncGenerat
 # ── OpenAI-Compatible Provider (Groq, OpenRouter, Local) ────────────
 
 
+def _build_messages(prompt: str, **kwargs: Any) -> list[dict[str, str]]:
+    """Build chat messages from either a messages list or a plain prompt string."""
+    messages = kwargs.get("messages")
+    if messages:
+        return messages
+    return [{"role": "user", "content": prompt}]
+
+
 def _generate_openai_compat(prompt: str, model: str, provider: str, **kwargs: Any) -> str:
     """Generate with an OpenAI-compatible endpoint (non-streaming)."""
     client = _get_openai_client(provider, sync=True)
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=_build_messages(prompt, **kwargs),
         temperature=kwargs.get("temperature", 0.3),
-        max_tokens=kwargs.get("max_tokens", 2048),
+        max_tokens=kwargs.get("max_tokens", 4096),
     )
     return response.choices[0].message.content or ""
 
@@ -111,9 +119,9 @@ async def _stream_openai_compat(
     client = _get_openai_client(provider, sync=False)
     stream = await client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=_build_messages(prompt, **kwargs),
         temperature=kwargs.get("temperature", 0.3),
-        max_tokens=kwargs.get("max_tokens", 2048),
+        max_tokens=kwargs.get("max_tokens", 4096),
         stream=True,
     )
     async for chunk in stream:

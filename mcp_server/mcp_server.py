@@ -29,12 +29,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastmcp import FastMCP
-
 from app.agent.tools import safe_calculate
 from app.core.config import get_settings
 from app.generation import llm
-from app.generation.prompt import RAG_SYSTEM_PROMPT
+from app.generation.prompt import (FORMATTING_EXAMPLE, RAG_SYSTEM_MSG,
+                                   RAG_USER_MSG)
 from app.ingestion.chunking import chunk_document
 from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import load_pdf
@@ -43,6 +42,7 @@ from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve
 from app.retrieval.vector_store import build_and_save as build_faiss
 from app.retrieval.vector_store import is_already_indexed
+from fastmcp import FastMCP
 
 logger = logging.getLogger("woxbot.mcp")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -90,7 +90,9 @@ def search_woxsen_docs(query: str) -> str:
         f"[{c.get('section_title', 'N/A')}]\n{c.get('text', '')}"
         for c in chunks
     )
-    prompt = RAG_SYSTEM_PROMPT.format(context=context, query=query)
+    prompt = RAG_SYSTEM_MSG + "\n\n" + RAG_USER_MSG.format(
+        example=FORMATTING_EXAMPLE, context=context,
+        memory="(No prior conversation)", query=query)
     answer = llm.generate(prompt)
 
     # Attach sources

@@ -116,11 +116,14 @@ class TestPrompts:
 
         templates = [
             prompt.REWRITER_PROMPT,
-            prompt.RAG_SYSTEM_PROMPT,
+            prompt.RAG_SYSTEM_MSG,
+            prompt.RAG_USER_MSG,
             prompt.ROUTER_PROMPT,
             prompt.VALIDATOR_PROMPT,
-            prompt.SUMMARIZER_PROMPT,
-            prompt.WEB_SEARCH_PROMPT,
+            prompt.SUMMARIZER_SYSTEM_MSG,
+            prompt.SUMMARIZER_USER_MSG,
+            prompt.WEB_SEARCH_SYSTEM_MSG,
+            prompt.WEB_SEARCH_USER_MSG,
             prompt.CLARIFY_PROMPT,
         ]
         for t in templates:
@@ -128,9 +131,12 @@ class TestPrompts:
             assert len(t) > 10  # Not empty stubs
 
     def test_rag_prompt_has_placeholders(self):
-        from app.generation.prompt import RAG_SYSTEM_PROMPT
+        from app.generation.prompt import RAG_USER_MSG
 
-        assert "{context}" in RAG_SYSTEM_PROMPT or "context" in RAG_SYSTEM_PROMPT.lower()
+        assert "{context}" in RAG_USER_MSG
+        assert "{query}" in RAG_USER_MSG
+        assert "{example}" in RAG_USER_MSG
+        assert "{memory}" in RAG_USER_MSG
 
 
 # ── Config Tests ─────────────────────────────────────────────────────

@@ -15,15 +15,17 @@ from __future__ import annotations
 import json
 import logging
 
-from app.agent import memory
+from app.agent import mongo_memory as memory
 from app.agent import router as agent_router
 from app.agent.graph import run_agent
 from app.agent.tools import (format_search_results, map_sources,
                              safe_calculate, web_search)
 from app.api.schemas import ChatRequest, ChatResponse
 from app.generation import llm
-from app.generation.prompt import (CLARIFY_PROMPT, RAG_SYSTEM_PROMPT,
-                                   SUMMARIZER_PROMPT, WEB_SEARCH_PROMPT)
+from app.generation.prompt import (CLARIFY_PROMPT, FORMATTING_EXAMPLE,
+                                   RAG_SYSTEM_MSG, RAG_USER_MSG,
+                                   SUMMARIZER_SYSTEM_MSG, SUMMARIZER_USER_MSG,
+                                   WEB_SEARCH_SYSTEM_MSG, WEB_SEARCH_USER_MSG)
 from app.generation.validator import validate
 from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve
@@ -86,8 +88,11 @@ async def _generate_stream(
                 yield f"data: {msg}\n\n"
                 answer_text = msg
             else:
-                prompt = WEB_SEARCH_PROMPT.format(search_results=formatted, query=query)
-                async for token in llm.stream(prompt, provider=provider, model=model):
+                messages = [
+                    {"role": "system", "content": WEB_SEARCH_SYSTEM_MSG},
+                    {"role": "user", "content": WEB_SEARCH_USER_MSG.format(search_results=formatted, query=query)},
+                ]
+                async for token in llm.stream("", provider=provider, model=model, messages=messages):
                     yield f"data: {token}\n\n"
                     answer_text += token
                 sources = [
@@ -105,8 +110,11 @@ async def _generate_stream(
                 answer_text = msg
             else:
                 content = "\n\n---\n\n".join(c.get("text", "") for c in chunks)
-                prompt = SUMMARIZER_PROMPT.format(content=content)
-                async for token in llm.stream(prompt, provider=provider, model=model):
+                messages = [
+                    {"role": "system", "content": SUMMARIZER_SYSTEM_MSG},
+                    {"role": "user", "content": SUMMARIZER_USER_MSG.format(content=content)},
+                ]
+                async for token in llm.stream("", provider=provider, model=model, messages=messages):
                     yield f"data: {token}\n\n"
                     answer_text += token
 
@@ -123,8 +131,14 @@ async def _generate_stream(
                     f"[{c.get('section_title', 'N/A')}]\n{c.get('text', '')}"
                     for c in chunks
                 )
-                prompt = RAG_SYSTEM_PROMPT.format(context=context, query=query)
-                async for token in llm.stream(prompt, provider=provider, model=model):
+                history_text = memory.get_history(session_id)
+                messages = [
+                    {"role": "system", "content": RAG_SYSTEM_MSG},
+                    {"role": "user", "content": RAG_USER_MSG.format(
+                        example=FORMATTING_EXAMPLE, context=context,
+                        memory=history_text, query=query)},
+                ]
+                async for token in llm.stream("", provider=provider, model=model, messages=messages):
                     yield f"data: {token}\n\n"
                     answer_text += token
 

@@ -25,5 +25,8 @@ python-multipart>=0.0.9
 # Phase 7 — MCP Server
 fastmcp>=0.1.0
 
+# MongoDB — conversation memory persistence
+pymongo>=4.8.0
+
 # Phase 7 — Testing
 pytest>=8.0.0

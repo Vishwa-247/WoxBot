@@ -19,12 +19,19 @@ function normalizeMarkdown(text) {
   formatted = formatted.replace(/([^\n])(?=#{2,4}\s)/g, "$1\n\n");
   formatted = formatted.replace(/(#{2,4}\s[^\n#]+)(?=#{2,4}\s)/g, "$1\n\n");
 
+  // Numbered lists glued together: "1. foo2. bar3. baz" → separate lines.
+  formatted = formatted.replace(/(\.)(\s*)(\d+\.\s)/g, "$1\n$3");
+
   // List markers also arrive inline. Promote them to real markdown lists.
   formatted = formatted.replace(/([^\n])(?=\*\s)/g, "$1\n");
   formatted = formatted.replace(/([^\n])(?=-\s(?=\*\*|[A-Z0-9]))/g, "$1\n");
 
   // Normalize bullet style so the UI is consistent.
   formatted = formatted.replace(/^\*\s/gm, "- ");
+
+  // Ensure a blank line before lists for markdown parsing.
+  formatted = formatted.replace(/([^\n])\n([-*]\s)/g, "$1\n\n$2");
+  formatted = formatted.replace(/([^\n])\n(\d+\.\s)/g, "$1\n\n$2");
 
   // Ensure a blank line after headings for markdown parsing.
   formatted = formatted.replace(/^(#{2,4}\s.+)$/gm, "\n$1\n");
@@ -33,6 +40,9 @@ function normalizeMarkdown(text) {
   formatted = formatted.replace(/([^\n])(\n\|)/g, "$1\n$2");
   formatted = formatted.replace(/(\|.*\|)(\n)(?!\||\n)/g, "$1\n\n");
   formatted = formatted.replace(/^---$/gm, "\n---\n");
+
+  // **bold** glued to next word/section — ensure spacing.
+  formatted = formatted.replace(/\*\*([^*]+)\*\*(?=[A-Z])/g, "**$1**\n\n");
 
   // Collapse excessive whitespace while preserving intentional spacing.
   formatted = formatted.replace(/\n{3,}/g, "\n\n");

@@ -19,7 +19,8 @@ from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import load_pdf
 from app.ingestion.summarizer import generate_doc_summary
 from app.retrieval.bm25_store import build_and_save as build_bm25
-from app.retrieval.vector_store import build_and_save, compute_file_hash, is_already_indexed
+from app.retrieval.vector_store import (build_and_save, compute_file_hash,
+                                        is_already_indexed)
 from fastapi import APIRouter, File, UploadFile
 
 logger = logging.getLogger("woxbot")

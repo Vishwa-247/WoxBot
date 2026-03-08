@@ -14,8 +14,8 @@ from app.api.routes.ingest import router as ingest_router
 from app.api.routes.sources import router as sources_router
 from app.core.config import get_settings
 from app.core.logger import logger
-from app.db.mongo import close_db, connect_db
 from app.db.chunk_store import ensure_indexes
+from app.db.mongo import close_db, connect_db
 from app.retrieval.reranker import _get_cross_encoder
 from app.retrieval.vector_store import load_index
 from fastapi import Depends, FastAPI, HTTPException, Request, Security

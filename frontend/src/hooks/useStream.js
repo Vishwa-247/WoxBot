@@ -20,7 +20,13 @@ export function useStream() {
   const [isStreaming, setIsStreaming] = useState(false);
 
   const startStream = useCallback(
-    async (query, sessionId, provider = "groq", model = null, selectedDocIds = []) => {
+    async (
+      query,
+      sessionId,
+      provider = "groq",
+      model = null,
+      selectedDocIds = [],
+    ) => {
       // Guard: cancel any in-flight stream before starting a new one
       if (abortRef.current) {
         abortRef.current.abort();

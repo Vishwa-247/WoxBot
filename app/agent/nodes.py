@@ -24,9 +24,8 @@ from app.generation import llm
 from app.generation.prompt import (CLARIFY_PROMPT, FORMATTING_EXAMPLE,
                                    RAG_SYSTEM_MSG, RAG_USER_MSG,
                                    REWRITER_PROMPT, STUDY_PLAN_PROMPT,
-                                   SUMMARIZER_SYSTEM_MSG,
-                                   SUMMARIZER_USER_MSG, WEB_SEARCH_SYSTEM_MSG,
-                                   WEB_SEARCH_USER_MSG)
+                                   SUMMARIZER_SYSTEM_MSG, SUMMARIZER_USER_MSG,
+                                   WEB_SEARCH_SYSTEM_MSG, WEB_SEARCH_USER_MSG)
 from app.generation.validator import validate
 from app.retrieval.reranker import rerank
 from app.retrieval.retriever import hybrid_retrieve

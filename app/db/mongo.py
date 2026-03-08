@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import logging
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-
 from app.core.config import get_settings
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 logger = logging.getLogger("woxbot")
 

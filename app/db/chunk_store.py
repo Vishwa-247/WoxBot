@@ -131,7 +131,22 @@ async def save_document(doc: dict) -> None:
         {"$set": doc},
         upsert=True,
     )
-    logger.info("[ChunkStore] Saved document record: %s", doc.get("filename"))
+    logger.info(
+        "[ChunkStore] Saved document record: %s",
+        doc.get("filename") or str(doc.get("_id", ""))[:12],
+    )
+
+
+async def update_document_summary(doc_id: str, summary: str) -> None:
+    """Add or update only the summary field on an existing document record."""
+    db = get_db()
+    if db is None:
+        return
+    await db.documents.update_one(
+        {"_id": doc_id},
+        {"$set": {"summary": summary}},
+    )
+    logger.info("[ChunkStore] Updated summary for doc_id=%s", doc_id[:12])
 
 
 async def list_documents() -> list[dict]:

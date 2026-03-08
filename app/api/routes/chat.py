@@ -179,7 +179,8 @@ async def _generate_stream(
 
     # Post-hoc source mapping for RAG-based routes
     if route in ("document_qa", "summarize") and chunks and answer_text:
-        sources = map_sources(answer_text, chunks)
+        # Return embeddings so the validator can reuse them (avoids a second API call)
+        sources, chunk_embs = map_sources(answer_text, chunks, return_embeddings=True)
 
         # Conditional validation
         try:
@@ -187,6 +188,7 @@ async def _generate_stream(
                 query=query,
                 answer=answer_text,
                 chunks=chunks,
+                chunk_embs=chunk_embs,
                 provider=provider,
                 model=model,
             )

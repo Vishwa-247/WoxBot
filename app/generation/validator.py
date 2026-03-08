@@ -65,22 +65,30 @@ def _token_overlap(answer: str, chunks: list[dict]) -> float:
     return len(meaningful_overlap) / len(meaningful_answer)
 
 
-def _embedding_similarity(answer: str, chunks: list[dict]) -> float:
+def _embedding_similarity(
+    answer: str,
+    chunks: list[dict],
+    chunk_embs: "np.ndarray | None" = None,
+) -> float:
     """
     Compute average cosine similarity between the answer embedding
     and the embeddings of the top chunks.
 
-    Uses the query embedder for a lightweight single-vector check.
+    Accepts pre-computed chunk_embs to avoid redundant API calls when
+    map_sources() has already embedded the same chunks.
     """
     answer_emb = embed_query(answer)  # shape (1, dim)
 
-    # Re-embed chunk texts (lightweight — max 8 chunks)
-    chunk_texts = [c.get("text", "") for c in chunks if c.get("text")]
-    if not chunk_texts:
-        return 0.0
+    if chunk_embs is None:
+        # Fall back to embedding chunks on demand
+        chunk_texts = [c.get("text", "") for c in chunks if c.get("text")]
+        if not chunk_texts:
+            return 0.0
+        from app.ingestion.embedder import embed_texts
+        chunk_embs = embed_texts(chunk_texts)  # shape (n, dim)
 
-    from app.ingestion.embedder import embed_texts
-    chunk_embs = embed_texts(chunk_texts)  # shape (n, dim)
+    if chunk_embs is None or chunk_embs.shape[0] == 0:
+        return 0.0
 
     # Normalize
     answer_norm = answer_emb / (np.linalg.norm(answer_emb, axis=1, keepdims=True) + 1e-10)
@@ -114,6 +122,7 @@ def validate(
     chunks: list[dict],
     provider: str | None = None,
     model: str | None = None,
+    chunk_embs: "np.ndarray | None" = None,
 ) -> dict:
     """
     Conditional validation of a generated answer.
@@ -147,9 +156,9 @@ def validate(
             "token_overlap": overlap,
         }
 
-    # Step 2: Embedding similarity (medium cost)
+    # Step 2: Embedding similarity (medium cost — uses precomputed chunk_embs if available)
     try:
-        sim = _embedding_similarity(answer, chunks)
+        sim = _embedding_similarity(answer, chunks, chunk_embs=chunk_embs)
         logger.info("Validator embedding similarity: %.3f", sim)
     except Exception as e:
         logger.warning("Embedding similarity check failed: %s", e)

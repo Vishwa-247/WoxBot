@@ -159,7 +159,11 @@ def format_search_results(results: list[dict]) -> str:
 # ── Post-Hoc Source Mapping (Fix 3 from build plan) ──────────────────
 
 
-def map_sources(answer: str, chunks: list[dict]) -> list[dict]:
+def map_sources(
+    answer: str,
+    chunks: list[dict],
+    return_embeddings: bool = False,
+) -> "list[dict] | tuple[list[dict], np.ndarray | None]":
     """
     Post-hoc source mapping — assign sources AFTER LLM generates the answer.
 
@@ -168,19 +172,19 @@ def map_sources(answer: str, chunks: list[dict]) -> list[dict]:
       2. For each sentence: compute cosine similarity with each chunk
       3. Assign the highest-scoring chunk as source for that sentence
 
-    NEVER instruct the LLM to write [Source: file.pdf, Page X].
-
     Args:
         answer: The generated answer text.
         chunks: The top-k reranked chunks used for generation.
+        return_embeddings: When True, return (sources, chunk_embs) so callers
+            can reuse chunk_embs in the validator without a second API call.
 
     Returns:
-        List of unique source dicts with filename, page, section_title, relevance_score.
+        List of unique source dicts, or (sources, chunk_embs) when return_embeddings=True.
     """
     if not chunks or not answer.strip():
-        return []
+        return ([], None) if return_embeddings else []
 
-    from app.ingestion.embedder import embed_query, embed_texts
+    from app.ingestion.embedder import embed_texts
 
     # Split answer into sentences
     sentences = re.split(r"(?<=[.!?])\s+", answer.strip())
@@ -188,16 +192,19 @@ def map_sources(answer: str, chunks: list[dict]) -> list[dict]:
 
     if not sentences:
         # Return all chunks as sources if no sentences to map
-        return _unique_sources(chunks)
+        result = _unique_sources(chunks)
+        return (result, None) if return_embeddings else result
 
     # Embed sentences and chunks
+    chunk_embs = None
     try:
         sent_embs = embed_texts(sentences)
         chunk_texts = [c.get("text", "") for c in chunks]
         chunk_embs = embed_texts(chunk_texts)
     except Exception as e:
         logger.warning("Source mapping embedding failed: %s. Returning all chunks.", e)
-        return _unique_sources(chunks)
+        result = _unique_sources(chunks)
+        return (result, None) if return_embeddings else result
 
     # Normalize for cosine similarity
     sent_norms = sent_embs / (np.linalg.norm(sent_embs, axis=1, keepdims=True) + 1e-10)
@@ -214,7 +221,8 @@ def map_sources(answer: str, chunks: list[dict]) -> list[dict]:
 
     # Build source list from matched chunks
     matched_chunks = [chunks[i] for i in sorted(used_chunk_indices)]
-    return _unique_sources(matched_chunks)
+    result = _unique_sources(matched_chunks)
+    return (result, chunk_embs) if return_embeddings else result
 
 
 def _unique_sources(chunks: list[dict]) -> list[dict]:

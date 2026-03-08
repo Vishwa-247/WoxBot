@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from app.db import chunk_store
+from app.db.chunk_store import update_document_summary
 from app.generation import llm
 
 logger = logging.getLogger("woxbot")
@@ -38,7 +38,7 @@ async def generate_doc_summary(doc_id: str, chunks: list[dict]) -> str:
     try:
         summary = llm.generate(prompt, temperature=0.3, max_tokens=600)
         if summary:
-            await chunk_store.save_document({"_id": doc_id, "summary": summary})
+            await update_document_summary(doc_id, summary)
             logger.info("Auto-summary generated for doc_id=%s", doc_id[:12])
             return summary
     except Exception as e:

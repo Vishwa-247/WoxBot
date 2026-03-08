@@ -14,6 +14,10 @@ from app.api.routes.ingest import router as ingest_router
 from app.api.routes.sources import router as sources_router
 from app.core.config import get_settings
 from app.core.logger import logger
+from app.db.mongo import close_db, connect_db
+from app.db.chunk_store import ensure_indexes
+from app.retrieval.reranker import _get_cross_encoder
+from app.retrieval.vector_store import load_index
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -33,10 +37,36 @@ async def verify_api_key(api_key: str | None = Security(_api_key_header)):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup / shutdown lifecycle hook."""
+    """Startup / shutdown lifecycle hook — preload models and connect DB."""
     settings = get_settings()
     logger.info("🚀 %s v%s starting in [%s] mode", settings.app_name, settings.app_version, settings.app_env)
+
+    # ── MongoDB ──────────────────────────────────────────
+    await connect_db()
+    await ensure_indexes()
+    logger.info("✅ MongoDB connected and indexes ensured.")
+
+    # ── CrossEncoder reranker ────────────────────────────
+    try:
+        _get_cross_encoder()
+        logger.info("✅ CrossEncoder model preloaded.")
+    except Exception as e:
+        logger.warning("⚠️ CrossEncoder preload failed: %s", e)
+
+    # ── FAISS index ──────────────────────────────────────
+    try:
+        result = load_index()
+        if result:
+            logger.info("✅ FAISS index preloaded (%d vectors).", result[0].ntotal)
+        else:
+            logger.info("ℹ️ No FAISS index found — will be built on first ingest.")
+    except Exception as e:
+        logger.warning("⚠️ FAISS preload failed: %s", e)
+
     yield
+
+    # ── Shutdown ─────────────────────────────────────────
+    await close_db()
     logger.info("🛑 %s shutting down", settings.app_name)
 
 

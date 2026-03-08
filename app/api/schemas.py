@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
     session_id: str = Field(default="default", max_length=100)
     provider: str | None = Field(default=None, description="LLM provider override")
     model: str | None = Field(default=None, description="LLM model override")
+    selected_doc_ids: list[str] = Field(default_factory=list, description="Filter retrieval to these docs")
 
 
 class SourceChunk(BaseModel):
@@ -46,6 +47,7 @@ class IngestResponse(BaseModel):
     total_pages: int
     scanned_pages: list[int] = []
     message: str = ""
+    summary: str = ""
 
 
 # ── Sources ──────────────────────────────────────────────────────────
@@ -53,6 +55,7 @@ class IngestResponse(BaseModel):
 
 class DocumentInfo(BaseModel):
     """A single indexed document."""
+    doc_id: str = ""
     filename: str
     chunk_count: int
 

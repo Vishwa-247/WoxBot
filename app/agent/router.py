@@ -25,7 +25,7 @@ from app.retrieval.vector_store import has_documents
 logger = logging.getLogger("woxbot")
 
 # Valid route names
-VALID_ROUTES = {"document_qa", "web_search", "calculation", "summarize", "unclear"}
+VALID_ROUTES = {"document_qa", "web_search", "calculation", "summarize", "unclear", "study_planner"}
 
 
 def keyword_pre_route(query: str) -> str | None:
@@ -75,9 +75,20 @@ def keyword_pre_route(query: str) -> str | None:
         "key points", "main points", "tldr", "tl;dr",
     ]
 
+    # Study planner keywords
+    study_keywords = [
+        "exam", "study plan", "prepare", "revision", "help me study",
+        "tomorrow exam", "last minute", "important topics", "what to study",
+        "study guide", "exam prep", "review for", "study schedule",
+    ]
+
     if any(k in q for k in calc_keywords):
         logger.info("Keyword pre-router → calculation")
         return "calculation"
+
+    if any(k in q for k in study_keywords):
+        logger.info("Keyword pre-router → study_planner")
+        return "study_planner"
 
     if any(k in q for k in summarize_keywords):
         logger.info("Keyword pre-router → summarize")

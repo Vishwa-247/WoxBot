@@ -65,13 +65,18 @@ def _reciprocal_rank_fusion(
     return fused
 
 
-def hybrid_retrieve(query: str, top_k: int | None = None) -> list[dict]:
+def hybrid_retrieve(
+    query: str,
+    top_k: int | None = None,
+    selected_filenames: list[str] | None = None,
+) -> list[dict]:
     """
     Hybrid retrieval: FAISS(20) + BM25(20) → RRF fusion.
 
     Args:
         query: The search query string.
         top_k: Number of fused results to return (default from settings).
+        selected_filenames: If provided, only retrieve from these document filenames.
 
     Returns:
         List of chunk dicts with rrf_score, sorted by score descending.
@@ -82,12 +87,23 @@ def hybrid_retrieve(query: str, top_k: int | None = None) -> list[dict]:
 
     # ── FAISS semantic search (top-20) ───────────────────
     query_embedding = embed_query(query)
-    faiss_results = vector_store.search(query_embedding, top_k=20)
-    logger.info("FAISS returned %d results.", len(faiss_results))
+
+    if selected_filenames:
+        allowed = set(selected_filenames)
+        faiss_results = vector_store.search_filtered(query_embedding, allowed, top_k=20)
+        logger.info("FAISS (filtered) returned %d results.", len(faiss_results))
+    else:
+        faiss_results = vector_store.search(query_embedding, top_k=20)
+        logger.info("FAISS returned %d results.", len(faiss_results))
 
     # ── BM25 keyword search (top-20) ────────────────────
-    bm25_results = bm25_store.search(query, top_k=20)
-    logger.info("BM25 returned %d results.", len(bm25_results))
+    if selected_filenames:
+        allowed = set(selected_filenames)
+        bm25_results = bm25_store.search_filtered(query, allowed, top_k=20)
+        logger.info("BM25 (filtered) returned %d results.", len(bm25_results))
+    else:
+        bm25_results = bm25_store.search(query, top_k=20)
+        logger.info("BM25 returned %d results.", len(bm25_results))
 
     # ── RRF Fusion ──────────────────────────────────────
     fused = _reciprocal_rank_fusion([faiss_results, bm25_results])

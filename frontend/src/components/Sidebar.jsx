@@ -6,6 +6,7 @@ export default function Sidebar({
   activeSessionId,
   onLoadSession,
   onDeleteSession,
+  children,
 }) {
   const grouped = groupByDate(chatHistory || []);
 
@@ -60,6 +61,8 @@ export default function Sidebar({
             </svg>
           </button>
         </div>
+        {/* Document selector (passed as children) */}
+        {children}
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto px-2 pb-4">
           {grouped.length === 0 ? (

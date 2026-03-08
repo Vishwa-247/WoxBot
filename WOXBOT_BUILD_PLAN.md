@@ -1,243 +1,730 @@
-# WoxBot — Complete Build Plan
+# WoxBot — Phase 8 Upgrade Plan
 **Agentic RAG Academic Assistant for Woxsen University**
 Dara Eakeswar Rayudu · B.Tech CSE Data Science · March 2026
-Stack: React + FastAPI + LangGraph + Gemini + FAISS + MCP
+Stack: React + FastAPI + LangGraph + Gemini/Grok + FAISS + MongoDB + MCP
 
 ---
 
-## ⚠️ READ THIS FIRST — 5 Critical Constraints
+## ⚠️ READ THIS FIRST — Context for Opus 4.6
 
-Before writing any code, lock in these 5 rules. Every architectural decision follows from them.
+You are continuing work on WoxBot — a production-grade Agentic RAG system already built through 7 phases. All 7 phases are complete. This document adds **4 production upgrades** (Phase 8). Implement them in the order listed at the bottom.
 
-1. **Chunk size = 400 tokens, section-based** — detect headings first, chunk per section. NEVER use RecursiveTextSplitter blindly on all PDFs with a single token count.
-2. **Reranker returns top 8 chunks, NOT top 3** — complex questions need context from multiple pages. Set `RERANK_TOP_K=8` in .env.
-3. **Query Rewriter node is the FIRST step in LangGraph** — before the router, before retrieval. Converts vague follow-ups like "what is it" into standalone queries using conversation history.
-4. **Never use `eval()` for the calculator** — use pure `list[float]` arithmetic only.
-5. **All SSE streaming logic lives in `useStream.js` only** — never open EventSource inside a React component directly.
+**Existing constraints that STILL apply:**
+1. Chunk size = 400 tokens, section-based. NEVER use RecursiveTextSplitter blindly.
+2. Reranker returns top 8 chunks (`RERANK_TOP_K=8`). NOT top 3.
+3. Query Rewriter is the FIRST node in LangGraph — before router, before retrieval.
+4. Never use `eval()` for calculator — pure `list[float]` arithmetic only.
+5. All SSE logic lives in `useStream.js` only — never open EventSource inside a React component.
 
 ---
 
-## Project Overview
+## Overview — 4 Upgrades
 
-WoxBot is a production-grade Agentic RAG system for Woxsen University students. Students upload course PDFs (syllabus, lab manuals, notes) and ask natural language questions. The system retrieves grounded answers with source citations — zero hallucination.
+| # | Upgrade | Problem It Solves | Priority |
+|---|---|---|---|
+| 1 | MongoDB Integration | `metadata.json` breaks at scale, no query support, can't delete specific doc chunks | HIGH |
+| 2 | Multi-Document Selection | Bot searches ALL docs — slow, pulls irrelevant chunks from wrong subjects | HIGH |
+| 3 | Agentic Proactive Behavior | Bot only answers — doesn't guide, plan, ask clarifying questions, or suggest follow-ups | HIGH |
+| 4 | Model Preloading at Startup | CrossEncoder loads on first request — 3–5s delay for every cold start | MEDIUM |
 
-### Problem Statement
-- Scattered information — 8 semesters of PDFs with no intelligent search
-- ChatGPT hallucinations — generic LLMs answer from training data, not your Woxsen syllabus
-- No 24/7 academic support
+---
 
-### Tech Stack
+## Upgrade 1 — MongoDB Integration
 
-| Layer | Technology | Purpose |
+### Why MongoDB
+
+Right now document metadata lives in a flat `metadata.json` file. This works for 5 PDFs. At 50+ PDFs or when you need to delete one specific document's chunks from FAISS, JSON breaks completely.
+
+MongoDB gives you:
+- Per-document chunk queries — find all chunks from one PDF instantly
+- Fast delete — remove all chunks for a document with one query
+- Filtering by subject/semester before retrieval
+- Compound index on `(doc_id, chunk_id)` — sub-millisecond lookup
+
+### MongoDB Document Schema
+
+```python
+# MongoDB collection: woxbot.chunks
+{
+  "_id": ObjectId(),
+  "doc_id": "sha256-hash-of-pdf",          # links to documents collection
+  "chunk_index": 0,                         # position within document
+  "filename": "OS_Unit3_Notes.pdf",
+  "subject": "Operating Systems",           # extracted from filename or user input
+  "semester": 3,                            # user provides on upload
+  "doc_type": "notes",                      # notes | syllabus | lab_manual | paper
+  "section_title": "Round Robin Scheduling",
+  "page": 12,
+  "text": "...",
+  "embedding_model_version": "text-embedding-004",
+  "faiss_index": 4821,                      # position in FAISS flat index
+  "created_at": ISODate("2026-03-01")
+}
+
+# MongoDB collection: woxbot.documents
+{
+  "_id": "sha256-hash",
+  "filename": "OS_Unit3_Notes.pdf",
+  "subject": "Operating Systems",
+  "semester": 3,
+  "doc_type": "notes",
+  "chunk_count": 47,
+  "pages": 24,
+  "scanned_pages": [3, 7],
+  "summary": "...",                         # auto-generated on upload (Upgrade 3)
+  "uploaded_at": ISODate("2026-03-01"),
+  "status": "indexed"                       # indexed | processing | failed
+}
+```
+
+### Files to Create or Modify
+
+| File | Action | What Changes |
 |---|---|---|
-| Frontend | React 19 + Vite + TailwindCSS | UI, streaming, dark mode |
-| Backend | FastAPI + Python 3.11 | API server, SSE streaming |
-| LLM | Gemini 1.5 Flash | Answer generation |
-| Embeddings | Gemini text-embedding-004 | Vector creation |
-| Vector DB | FAISS (faiss-cpu) | Semantic search |
-| Keyword Search | rank_bm25 | Exact match search |
-| Reranker | cross-encoder/ms-marco-MiniLM-L-6-v2 | Re-score top 20 → top 8 |
-| Agent Framework | LangGraph 0.3+ | Agentic routing (ReAct) |
-| PDF Parsing | PyMuPDF (fitz) | Text extraction |
-| MCP Server | fastmcp | Expose RAG to Claude Desktop |
-| Evaluation | RAGAS | Hallucination metrics |
-| Deploy | Vercel (frontend) + Render (backend) | Hosting |
+| `backend/app/db/mongo.py` | CREATE | MongoDB connection using `motor` (async). Singleton pattern. |
+| `backend/app/db/chunk_store.py` | CREATE | `save_chunks()`, `get_chunks_by_doc()`, `delete_chunks_by_doc()`, `filter_chunks()` |
+| `backend/app/ingestion/embedder.py` | MODIFY | After FAISS insert → write chunks to MongoDB instead of `metadata.json` |
+| `backend/app/api/routes/ingest.py` | MODIFY | Save document record to `woxbot.documents` on successful ingest |
+| `backend/app/api/routes/sources.py` | MODIFY | Read from MongoDB. DELETE removes from FAISS + BM25 + MongoDB atomically |
+| `backend/.env` | MODIFY | Add `MONGODB_URI` and `MONGODB_DB` |
+| `backend/requirements.txt` | MODIFY | Add `motor>=3.3.1` and `pymongo>=4.6.0` |
 
----
+### Implementation
 
-## Final Architecture
+**`backend/app/db/mongo.py`**
+```python
+from motor.motor_asyncio import AsyncIOMotorClient
+from app.config import settings
 
-### Ingestion Pipeline
-```
-PDF Upload
-  → Scanned Page Detection (flag pages with < 50 chars)
-  → Layout-Aware Parsing (PyMuPDF)
-  → Detect Headings (ALL CAPS / Title Case / Numbered like "1.", "1.1")
-  → Section-Based Chunking (300–400 tokens per section)
-  → Embed with Gemini text-embedding-004
-  → Save to FAISS + BM25 + metadata.json
-     (chunk_id → filename, page, section_title, text, embedding_model_version)
+_client: AsyncIOMotorClient = None
+
+async def connect_db():
+    global _client
+    _client = AsyncIOMotorClient(settings.MONGODB_URI)
+    await _client.admin.command("ping")
+    print("[MongoDB] Connected")
+
+async def get_db():
+    return _client[settings.MONGODB_DB]
 ```
 
-### Query / Chat Pipeline
-```
-Student Question
-  → Query Rewriter        (standalone query from conversation history)
-  → Keyword Pre-Router    (rule-based: my notes / CGPA / web?)
-  → LangGraph Router      (document_qa / web_search / calculation / summarize / unclear)
-  → Hybrid Retrieval      (FAISS top-20 + BM25 top-20 → RRF Fusion)
-  → CrossEncoder Reranker (top 20 → top 8)
-  → Similarity Threshold  (if all scores < calibrated_threshold → no_context fallback)
-  → Anti-Hallucination Prompt + Gemini 1.5 Flash
-  → Self-Correction Validator (ONLY on borderline confidence, not every answer)
-  → Post-Hoc Source Mapping   (attach sources by sentence — NOT inline LLM citation)
-  → SSE Token Stream → React Frontend
-```
+**`backend/app/db/chunk_store.py`**
+```python
+from app.db.mongo import get_db
 
----
+async def save_chunks(chunks: list[dict]):
+    db = await get_db()
+    if chunks:
+        await db.chunks.insert_many(chunks)
 
-## Complete Folder Structure
+async def get_chunks_for_docs(doc_ids: list[str]) -> list[dict]:
+    """Fetch all chunks for selected documents — used in multi-doc filtering."""
+    db = await get_db()
+    cursor = db.chunks.find({"doc_id": {"$in": doc_ids}})
+    return await cursor.to_list(length=None)
 
-```
-woxbot/
-├── frontend/
-│   ├── public/
-│   │   └── woxbot-logo.png
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ChatWindow.jsx       # Reads state only — never touches EventSource
-│   │   │   ├── MessageBubble.jsx    # User + bot bubbles with react-markdown
-│   │   │   ├── InputBar.jsx         # Text input + send + mic icon
-│   │   │   ├── FileUpload.jsx       # Drag-and-drop PDF uploader + progress
-│   │   │   ├── SourcePanel.jsx      # Chunks + page + section title
-│   │   │   ├── Sidebar.jsx          # Chat history (in-memory)
-│   │   │   ├── DocumentList.jsx     # Indexed PDFs with delete button
-│   │   │   ├── LoadingDots.jsx      # Typing indicator animation
-│   │   │   └── Navbar.jsx           # Logo + dark/light toggle
-│   │   ├── hooks/
-│   │   │   ├── useChat.js           # Chat state, send message, session_id
-│   │   │   ├── useStream.js         # ALL EventSource logic here — useRef guard
-│   │   │   └── useUpload.js         # PDF upload state + progress
-│   │   ├── services/
-│   │   │   └── api.js               # All Axios calls to FastAPI
-│   │   ├── utils/
-│   │   │   └── markdown.js          # react-markdown config
-│   │   ├── styles/
-│   │   │   └── globals.css          # TailwindCSS base
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   ├── .env                         # VITE_API_URL=http://localhost:8000
-│   ├── index.html
-│   ├── tailwind.config.js
-│   ├── vite.config.js
-│   └── package.json
-│
-├── backend/
-│   ├── app/
-│   │   ├── main.py                  # FastAPI app: CORS, routers, startup
-│   │   ├── config.py                # All env vars
-│   │   ├── ingestion/
-│   │   │   ├── loader.py            # PyMuPDF + scanned page detection
-│   │   │   ├── chunking.py          # Section-based chunker (heading detection)
-│   │   │   └── embedder.py          # Gemini text-embedding-004 → numpy vectors
-│   │   ├── retrieval/
-│   │   │   ├── vector_store.py      # FAISS: build, save, load + SHA-256 dedup
-│   │   │   ├── bm25_store.py        # rank_bm25: build, save as pkl, search
-│   │   │   ├── retriever.py         # Hybrid: FAISS(20) + BM25(20) → RRF merge
-│   │   │   └── reranker.py          # CrossEncoder → top 8 (NOT top 3)
-│   │   ├── agent/
-│   │   │   ├── graph.py             # LangGraph StateGraph definition
-│   │   │   ├── nodes.py             # rewriter, router, rag, search, calc, validate, stream
-│   │   │   ├── tools.py             # Tool definitions (RAG, web, calculator)
-│   │   │   ├── router.py            # Keyword pre-router + LLM router
-│   │   │   └── memory.py            # Last 5 turns conversation buffer
-│   │   ├── generation/
-│   │   │   ├── llm.py               # Gemini 1.5 Flash: streaming + non-streaming
-│   │   │   ├── prompt.py            # All prompts: anti-hallucination, rewriter, validator
-│   │   │   └── validator.py         # Deterministic checks first → LLM only on borderline
-│   │   ├── api/
-│   │   │   ├── schemas.py           # Pydantic: ChatRequest, IngestResponse, SourceChunk
-│   │   │   └── routes/
-│   │   │       ├── chat.py          # POST /api/chat → SSE StreamingResponse
-│   │   │       ├── ingest.py        # POST /api/ingest → PDF indexing
-│   │   │       └── sources.py       # GET/DELETE /api/sources (auth required)
-│   │   ├── evaluation/
-│   │   │   ├── metrics.py           # RAGAS: faithfulness, recall, relevancy
-│   │   │   ├── test_questions.json  # 200 Woxsen-specific Q&A pairs
-│   │   │   └── evaluator.py         # Run RAGAS once, cache JSON output
-│   │   └── utils/
-│   │       ├── logger.py            # Structured logging: file + console
-│   │       └── helpers.py           # Shared utilities
-│   ├── data/
-│   │   ├── raw/                     # Place Woxsen PDFs here
-│   │   └── processed/               # Chunked JSON cache
-│   ├── vector_db/
-│   │   ├── faiss.index
-│   │   ├── bm25.pkl
-│   │   └── metadata.json            # chunk_id → filename, page, section, text, model_version
-│   ├── tests/
-│   │   ├── test_ingestion.py
-│   │   ├── test_retrieval.py
-│   │   └── test_rag_chain.py
-│   ├── run_ingestion.py             # One-time: ingest all PDFs in data/raw/
-│   ├── requirements.txt
-│   └── .env
-│
-├── mcp_server/
-│   ├── mcp_server.py                # FastMCP server
-│   ├── tools/
-│   │   ├── search_docs.py           # search_woxsen_docs tool
-│   │   ├── ingest_pdf.py            # ingest_pdf tool
-│   │   ├── list_documents.py        # list_documents tool
-│   │   └── calculate.py             # calculate_cgpa — pure arithmetic, no eval()
-│   └── README_MCP.md
-│
-├── docker-compose.yml
-├── .gitignore
-└── README.md
+async def delete_chunks_by_doc(doc_id: str) -> int:
+    db = await get_db()
+    result = await db.chunks.delete_many({"doc_id": doc_id})
+    return result.deleted_count
+
+async def list_documents() -> list[dict]:
+    db = await get_db()
+    cursor = db.documents.find({}, {"_id": 1, "filename": 1, "subject": 1,
+                                     "semester": 1, "chunk_count": 1, "uploaded_at": 1})
+    return await cursor.to_list(length=None)
 ```
 
----
+### Docker Setup for MongoDB (Local Dev)
 
-## Environment Variables
+```yaml
+# Add to docker-compose.yml
+services:
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:
+```
 
 ```bash
-# backend/.env
-GEMINI_API_KEY=your_key_here
-CHUNK_SIZE=400
-CHUNK_OVERLAP=80
-SIMILARITY_THRESHOLD=calibrate_from_data   # DO NOT hardcode 0.75
-RERANK_TOP_K=8                             # NOT 3
-RETRIEVAL_TOP_K=20
-MAX_MEMORY_TURNS=5
-VECTOR_DB_PATH=./vector_db
-DATA_RAW_PATH=./data/raw
-EMBEDDING_MODEL_VERSION=text-embedding-004
-LOG_LEVEL=INFO
+docker-compose up -d mongodb
 
-# frontend/.env
-VITE_API_URL=http://localhost:8000
+# Verify connection:
+python -c "from pymongo import MongoClient; c = MongoClient(); print(c.admin.command('ping'))"
+```
+
+### ⚠️ Migration Step
+
+After adding MongoDB, run a one-time migration to import existing `metadata.json` into MongoDB. Then rename `metadata.json` → `metadata.json.bak`. Only delete it after confirming MongoDB queries return correct data.
+
+```python
+# run_migration.py (one-time script)
+import json, asyncio
+from app.db.mongo import connect_db, get_db
+
+async def migrate():
+    await connect_db()
+    db = await get_db()
+    with open("vector_db/metadata.json") as f:
+        chunks = json.load(f)
+    await db.chunks.insert_many(chunks)
+    print(f"Migrated {len(chunks)} chunks to MongoDB")
+
+asyncio.run(migrate())
 ```
 
 ---
 
-## API Endpoints
+## Upgrade 2 — Multi-Document Selection
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET | /api/health | None | `{status: "ok", version: "1.0"}` |
-| POST | /api/ingest | Required | Upload PDF → index → return chunk count |
-| POST | /api/chat | Required | SSE stream — tokens then sources |
-| GET | /api/sources | Required | List indexed docs (paginated) |
-| DELETE | /api/sources/{doc_id} | Required | Remove doc + wipe FAISS vectors |
+### How It Works
 
-### SSE Stream Format
+Student uploads 5 PDFs (OS notes, DBMS notes, Maths syllabus, etc.). Before chatting, they see a document picker. They select only the 2 OS docs. WoxBot searches ONLY those — faster and more accurate.
+
+**Student flow:**
+1. Upload PDFs → each gets indexed and stored in MongoDB
+2. Sidebar shows a checkbox panel: all uploaded docs
+3. Student checks: `[✓] OS_Unit3_Notes.pdf` `[✓] OS_Syllabus.pdf` `[ ] DBMS_notes.pdf`
+4. Student asks: *"What are the scheduling algorithms?"*
+5. WoxBot retrieves from selected docs only
+
+### Backend Changes
+
+**Update `backend/app/api/schemas.py`**
+```python
+class ChatRequest(BaseModel):
+    query: str
+    session_id: str
+    selected_doc_ids: list[str] = []   # NEW — empty = search all docs (backward compatible)
 ```
-data: The
-data: round
-data: -robin
-data: [SOURCES_START]
-data: {"chunks": [{"text": "...", "source": "OS_notes.pdf", "page": 12, "section": "Round Robin Scheduling"}]}
-data: [DONE]
+
+**Update `backend/app/retrieval/retriever.py`**
+```python
+async def hybrid_retrieve(query: str, selected_doc_ids: list[str] = []) -> list[dict]:
+    query_vec = await embed(query)
+    query_tokens = tokenize(query)
+
+    if selected_doc_ids:
+        # Get FAISS index positions for selected docs from MongoDB
+        allowed_indices = await get_faiss_indices_for_docs(selected_doc_ids)
+        faiss_results = faiss_search_filtered(query_vec, allowed_indices, top_k=20)
+        bm25_results = bm25_search_filtered(query_tokens, selected_doc_ids, top_k=20)
+    else:
+        # Original behavior — search everything
+        faiss_results = faiss_search(query_vec, top_k=20)
+        bm25_results = bm25_search(query_tokens, top_k=20)
+
+    # RRF fusion + CrossEncoder reranker — unchanged
+    return rrf_fuse_and_rerank(faiss_results, bm25_results)
 ```
-**Rule:** Send raw text tokens first. Then one JSON block for sources after `[SOURCES_START]` delimiter. Never send each token as JSON — this crashes React parsers.
 
----
+**FAISS Filtered Search**
+```python
+import numpy as np
+import faiss
 
-## MCP Tools
+def faiss_search_filtered(query_vec: np.ndarray, allowed_indices: list[int], top_k: int):
+    """FAISS doesn't natively filter — use IDSelectorBatch (requires faiss >= 1.7.3)"""
+    selector = faiss.IDSelectorBatch(np.array(allowed_indices, dtype=np.int64))
+    search_params = faiss.SearchParametersIVF(sel=selector)
+    scores, indices = index.search(
+        np.array([query_vec], dtype=np.float32),
+        top_k,
+        params=search_params
+    )
+    return scores[0], indices[0]
+```
 
-| Tool | Input | Output |
+### New API Endpoints
+
+| Method | Endpoint | Returns |
 |---|---|---|
-| search_woxsen_docs | query: str | answer + source citations |
-| ingest_pdf | file_path: str | chunks_indexed: int |
-| list_documents | — | list of filenames |
-| calculate_cgpa | marks: list[float] | cgpa: float |
+| `GET` | `/api/documents` | All indexed docs: id, filename, subject, semester, chunk_count, uploaded_at |
+| `GET` | `/api/documents/{doc_id}/summary` | Auto-generated summary for that document |
+| `DELETE` | `/api/documents/{doc_id}` | Remove doc from FAISS + BM25 + MongoDB atomically |
+
+### Frontend Changes
+
+**New component: `src/components/DocumentSelector.jsx`**
+```jsx
+export function DocumentSelector({ documents, selectedIds, onToggle }) {
+  return (
+    <div className="doc-selector">
+      <p className="selector-label text-xs font-semibold text-slate-400 mb-2">
+        Search in:
+      </p>
+      {documents.map(doc => (
+        <label key={doc.id} className="doc-item flex items-center gap-2 mb-1 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(doc.id)}
+            onChange={() => onToggle(doc.id)}
+            className="rounded"
+          />
+          <span className="doc-name text-sm text-slate-200 truncate">{doc.filename}</span>
+          <span className="doc-meta text-xs text-slate-500">{doc.chunk_count} chunks</span>
+        </label>
+      ))}
+      {selectedIds.length === 0 && (
+        <p className="text-xs text-slate-500 italic mt-1">Searching all documents</p>
+      )}
+    </div>
+  )
+}
+```
+
+**Update `hooks/useChat.js`**
+```javascript
+const [selectedDocIds, setSelectedDocIds] = useState([]);
+
+const sendMessage = async (query) => {
+  await streamChat({
+    query,
+    session_id: sessionId,
+    selected_doc_ids: selectedDocIds    // pass to backend
+  });
+};
+```
 
 ---
 
-## Anti-Hallucination System Prompt (Use This Exactly)
+## Upgrade 3 — Agentic Proactive Behavior
+
+### What Changes
+
+WoxBot currently only reacts. A real agentic assistant proactively:
+- Asks ONE clarifying question when the query is vague
+- Auto-summarizes each uploaded PDF and suggests questions
+- Detects study/exam intent and builds a structured plan
+- Sends 3 follow-up question suggestions after every answer
+
+### 3a — Clarify Node (was a stub in Phase 4 — now fully implement)
+
+**`backend/app/agent/nodes.py` — add clarify_node**
+```python
+CLARIFY_PROMPT = """
+You are WoxBot. The student's question is vague or too broad to answer from documents.
+Ask ONE specific clarifying question to understand what they need.
+
+Available documents: {doc_list}
+Student asked: {query}
+
+Rules:
+- Ask ONLY ONE question — never two
+- Make it specific (not generic "can you clarify?")
+- Offer 2–3 example options in your question if helpful
+- Never say "I don't understand"
+- Keep it under 2 sentences
+"""
+
+async def clarify_node(state: AgentState) -> AgentState:
+    doc_list = ", ".join(state["available_docs"])
+    prompt = CLARIFY_PROMPT.format(doc_list=doc_list, query=state["rewritten_query"])
+    question = await llm.agenerate(prompt)
+    state["response"] = question
+    state["needs_clarification"] = True
+    return state
+```
+
+### 3b — Auto-Summary on Document Upload
+
+When a PDF is ingested, automatically generate a summary and store it in MongoDB. Show it instantly in the UI.
+
+**`backend/app/ingestion/summarizer.py`** (CREATE NEW)
+```python
+AUTO_SUMMARY_PROMPT = """
+You are WoxBot. A student just uploaded a document.
+Based on the content below, provide:
+
+## What This Document Contains
+- Subject and main topics covered
+- Key chapters or units (list them)
+- Type: notes / syllabus / lab manual / question paper
+
+## 3 Questions You Can Ask Me About This Document
+List 3 specific, useful questions this document can answer.
+
+Keep the summary concise. Use bullet points.
+
+Document content (first 10 chunks):
+{sample_chunks}
+"""
+
+async def generate_doc_summary(doc_id: str, chunks: list[dict]) -> str:
+    sample_text = "\n\n".join([c["text"] for c in chunks[:10]])
+    prompt = AUTO_SUMMARY_PROMPT.format(sample_chunks=sample_text)
+    summary = await llm.agenerate(prompt)
+    # Save to MongoDB
+    db = await get_db()
+    await db.documents.update_one({"_id": doc_id}, {"$set": {"summary": summary}})
+    return summary
+```
+
+**In `backend/app/api/routes/ingest.py`** — call after successful FAISS indexing:
+```python
+# After ingestion completes:
+summary = await generate_doc_summary(doc_id, chunks)
+return IngestResponse(
+    doc_id=doc_id,
+    chunk_count=len(chunks),
+    summary=summary          # send back to frontend to display immediately
+)
+```
+
+### 3c — Study Planner Node
+
+**Update keyword pre-router in `backend/app/agent/router.py`:**
+```python
+study_keywords = [
+    "exam", "study plan", "prepare", "revision", "help me study",
+    "tomorrow exam", "last minute", "important topics", "what to study"
+]
+if any(k in q for k in study_keywords):
+    return "study_planner"
+```
+
+**Add study_planner node in `nodes.py`:**
+```python
+STUDY_PLAN_PROMPT = """
+You are WoxBot, an academic advisor for Woxsen University.
+Student query: {query}
+Available documents and their summaries:
+{doc_summaries}
+
+Create a structured study plan using ONLY the uploaded documents:
+
+## Study Plan
+### High Priority Topics (must know)
+### Suggested Study Order
+### Time Estimate per Topic
+### Key Concepts to Review
+### 5 Practice Questions from Your Notes
+
+Use bullet points and tables. Be specific — reference actual topics from the documents.
+"""
+
+async def study_planner_node(state: AgentState) -> AgentState:
+    # Fetch summaries from MongoDB for selected docs
+    summaries = await get_doc_summaries(state["selected_doc_ids"])
+    doc_summaries = "\n\n".join([f"**{s['filename']}**:\n{s['summary']}" for s in summaries])
+    prompt = STUDY_PLAN_PROMPT.format(
+        query=state["rewritten_query"],
+        doc_summaries=doc_summaries
+    )
+    plan = await llm.agenerate(prompt)
+    state["response"] = plan
+    return state
+```
+
+### 3d — Follow-Up Question Suggestions
+
+After every answer, generate 3 follow-up questions. Send as a new SSE event.
+
+**`backend/app/generation/followups.py`** (CREATE NEW)
+```python
+FOLLOWUP_PROMPT = """
+Based on this Q&A exchange, suggest 3 natural follow-up questions a student might ask.
+Make them specific and answerable from the same documents.
+
+Original question: {query}
+Answer summary: {answer_summary}
+
+Return ONLY a JSON array of 3 strings. No preamble. Example:
+["What are the advantages of Round Robin?", "How does quantum size affect performance?", "Compare Round Robin with FCFS"]
+"""
+
+async def generate_followups(query: str, answer: str) -> list[str]:
+    answer_summary = answer[:500]   # first 500 chars as context
+    prompt = FOLLOWUP_PROMPT.format(query=query, answer_summary=answer_summary)
+    raw = await llm.agenerate(prompt)
+    try:
+        return json.loads(raw.strip())
+    except Exception:
+        return []   # fail silently — follow-ups are optional
+```
+
+**Update SSE stream in `backend/app/api/routes/chat.py`:**
+```python
+async def generate_stream(query: str, session_id: str, selected_doc_ids: list[str]):
+    answer_tokens = []
+
+    async for token in agent.stream(query, session_id, selected_doc_ids):
+        answer_tokens.append(token)
+        yield f"data: {token}\n\n"
+
+    sources = agent.get_last_sources(session_id)
+    yield f"data: [SOURCES_START]\n\n"
+    yield f"data: {json.dumps({'chunks': sources})}\n\n"
+
+    # NEW: follow-up suggestions
+    followups = await generate_followups(query, "".join(answer_tokens))
+    if followups:
+        yield f"data: [FOLLOWUPS_START]\n\n"
+        yield f"data: {json.dumps({'questions': followups})}\n\n"
+
+    yield f"data: [DONE]\n\n"
+```
+
+**Update `hooks/useStream.js` to handle `[FOLLOWUPS_START]`:**
+```javascript
+// In your SSE onmessage handler — add this block alongside [SOURCES_START] handling:
+if (data === "[FOLLOWUPS_START]") {
+  parsingFollowups = true;
+  return;
+}
+if (parsingFollowups) {
+  const parsed = JSON.parse(data);
+  setFollowupQuestions(parsed.questions);
+  parsingFollowups = false;
+  return;
+}
+```
+
+**Show follow-up buttons below each bot message in `MessageBubble.jsx`:**
+```jsx
+{isBot && followupQuestions?.length > 0 && (
+  <div className="followup-suggestions mt-3 flex flex-wrap gap-2">
+    {followupQuestions.map((q, i) => (
+      <button
+        key={i}
+        onClick={() => onFollowupClick(q)}
+        className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1 rounded-full border border-slate-600"
+      >
+        {q}
+      </button>
+    ))}
+  </div>
+)}
+```
+
+### Updated LangGraph Flow
 
 ```
+START
+  → [Query Rewriter]            converts vague follow-ups → standalone query
+  → [Keyword Pre-Router]        rule-based fast routing (no LLM cost)
+      ├── document_qa   → [RAG Node] → Filtered Retrieval → Reranker(8) → LLM → Sources
+      ├── web_search    → [Search Node] → DuckDuckGo → LLM
+      ├── calculation   → [Calculator Node] → pure float arithmetic
+      ├── summarize     → [Summarizer Node] → map-reduce chunks → LLM
+      ├── study_planner → [Study Plan Node] → MongoDB doc summaries → LLM plan
+      └── unclear       → [Clarify Node] → ONE clarifying question → wait for user
+  → [Follow-Up Generator]       always runs after any answer
+  → [Memory Node]               save turn to 5-turn buffer
+  → [Stream Node]               SSE: tokens → [SOURCES_START] → [FOLLOWUPS_START] → [DONE]
+END
+```
+
+---
+
+## Upgrade 4 — Model Preloading at Startup
+
+### The Problem
+
+CrossEncoder, FAISS index, and BM25 all load lazily on the first request. Every Render.com redeploy or sleep-wake cycle means the first student waits 3–5 seconds. Fix: load everything during `lifespan()` startup.
+
+### Implementation
+
+**`backend/app/main.py` — replace `@app.on_event("startup")` with lifespan:**
+```python
+from contextlib import asynccontextmanager
+from app.retrieval.reranker import load_reranker
+from app.retrieval.vector_store import load_faiss_index
+from app.retrieval.bm25_store import load_bm25_index
+from app.generation.llm import warm_up_llm
+from app.db.mongo import connect_db
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[Startup] Loading all models and indexes...")
+
+    await connect_db()
+    print("[Startup] ✓ MongoDB connected")
+
+    await load_faiss_index()
+    print("[Startup] ✓ FAISS index loaded")
+
+    await load_bm25_index()
+    print("[Startup] ✓ BM25 index loaded")
+
+    await load_reranker()
+    print("[Startup] ✓ CrossEncoder loaded")
+
+    await warm_up_llm()
+    print("[Startup] ✓ LLM warmed up")
+
+    print("[Startup] All systems ready. First request will be fast.")
+    yield
+    # Shutdown
+    print("[Shutdown] Cleaning up...")
+
+app = FastAPI(lifespan=lifespan)
+```
+
+### Singleton Pattern for All Models
+
+Use module-level singletons — load once, reuse across all requests.
+
+**`backend/app/retrieval/reranker.py`**
+```python
+_reranker = None   # module-level singleton
+
+async def load_reranker():
+    global _reranker
+    from sentence_transformers import CrossEncoder
+    _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    # Warm-up run — prevents cold inference delay on first real request
+    _reranker.predict([("test query", "test passage")])
+    print("[Reranker] Model warmed up")
+
+def get_reranker():
+    if _reranker is None:
+        raise RuntimeError("Reranker not loaded. Check lifespan().")
+    return _reranker
+```
+
+**`backend/app/retrieval/vector_store.py`**
+```python
+_index = None
+
+async def load_faiss_index():
+    global _index
+    import faiss
+    _index = faiss.read_index(settings.VECTOR_DB_PATH + "/faiss.index")
+
+def get_index():
+    return _index
+```
+
+### LLM Warm-Up
+
+```python
+# backend/app/generation/llm.py
+
+async def warm_up_llm():
+    """Pre-initialize API connection pool at startup."""
+    try:
+        await generate("ping", system="Reply with: pong", max_tokens=5)
+        print("[LLM] Warm-up successful")
+    except Exception as e:
+        # NEVER crash startup if warm-up fails — just log it
+        print(f"[LLM] Warm-up skipped: {e}")
+```
+
+### Render.com Keep-Alive (Prevents Cold Starts)
+
+Render free tier spins down after 15 minutes of inactivity. Add a self-ping task:
+
+```python
+# backend/app/utils/keep_alive.py
+import asyncio
+import httpx
+
+async def keep_alive_ping(url: str, interval_seconds: int = 600):
+    """Ping /api/health every 10 minutes to prevent Render sleep."""
+    async with httpx.AsyncClient() as client:
+        while True:
+            await asyncio.sleep(interval_seconds)
+            try:
+                await client.get(f"{url}/api/health")
+            except Exception:
+                pass
+
+# In lifespan(), before yield:
+# import asyncio
+# asyncio.create_task(keep_alive_ping(settings.BACKEND_URL))
+```
+
+---
+
+## Formatting Fix — Bold Text Not Rendering
+
+If `**bold**` appears as raw asterisks, the cause is Tailwind's CSS preflight reset overriding react-markdown output.
+
+### Fix 1 — Install remark-gfm (required for tables)
+
+```bash
+npm install react-markdown remark-gfm
+```
+
+### Fix 2 — MessageBubble.jsx (complete replacement)
+
+```jsx
+// src/components/MessageBubble.jsx
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+
+export function MessageBubble({ message }) {
+  const isBot = message.role === 'assistant'
+
+  return (
+    <div className={isBot ? 'bot-bubble' : 'user-bubble'}>
+      {isBot ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {message.content}
+        </ReactMarkdown>
+      ) : (
+        <p>{message.content}</p>
+      )}
+    </div>
+  )
+}
+```
+
+### Fix 3 — globals.css (add !important overrides)
+
+Tailwind's preflight resets `font-weight`, `list-style`, and margins to `none`. The `!important` below is **required** — without it bold and bullets will not appear even with react-markdown installed.
+
+```css
+/* Add to src/styles/globals.css */
+
+.bot-bubble { line-height: 1.6; }
+
+/* Bold — !important required to override Tailwind preflight */
+.bot-bubble strong,
+.bot-bubble b {
+  font-weight: 700 !important;
+  color: #60a5fa;
+}
+
+.bot-bubble em { font-style: italic !important; color: #a5b4fc; }
+
+/* Headings */
+.bot-bubble h2 { font-size: 1.2rem; font-weight: 700; margin: 14px 0 8px; color: #e2e8f0; }
+.bot-bubble h3 { font-size: 1rem; font-weight: 600; margin: 10px 0 6px; color: #cbd5e1; }
+
+/* Lists — !important required to override Tailwind preflight */
+.bot-bubble ul { list-style: disc !important; padding-left: 20px !important; margin: 8px 0; }
+.bot-bubble ol { list-style: decimal !important; padding-left: 20px !important; margin: 8px 0; }
+.bot-bubble li { margin: 4px 0; }
+
+/* Tables */
+.bot-bubble table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.bot-bubble th { background: #1e3a5f; color: white; padding: 8px 12px; font-weight: 700; text-align: left; }
+.bot-bubble td { border: 1px solid #374151; padding: 8px 12px; }
+.bot-bubble tr:nth-child(even) td { background: #1e293b; }
+
+/* Code */
+.bot-bubble code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+.bot-bubble pre { background: #1e293b; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+.bot-bubble pre code { background: transparent; padding: 0; }
+```
+
+---
+
+## Updated System Prompt (prompt.py)
+
+Replace your existing `SYSTEM_PROMPT` with this. The formatting rules are what force the LLM to use markdown structure instead of plain paragraphs.
+
+```python
+# backend/app/generation/prompt.py
+
+SYSTEM_PROMPT = """
 You are WoxBot, an academic assistant for Woxsen University students.
 
 STRICT RULES:
@@ -245,8 +732,19 @@ STRICT RULES:
 2. NEVER use outside knowledge for factual answers.
 3. If the answer is not in the context, respond exactly:
    "I couldn't find this in your uploaded documents. Please upload the relevant notes."
-4. Do NOT include [Source: filename, Page X] inline — sources are attached automatically after your response.
+4. Do NOT include [Source: filename, Page X] inline — sources are attached automatically.
 5. Do NOT make up page numbers, filenames, or any fact not in the context.
+
+FORMATTING RULES — FOLLOW EXACTLY:
+6. NEVER respond in plain paragraphs. Always use structured markdown.
+7. Use ## for main topics, ### for subtopics.
+8. Use bullet points ( - ) for lists of features, properties, or items.
+9. Use numbered lists ( 1. 2. 3. ) for steps, procedures, or sequences.
+10. Use **bold** to highlight key terms, definitions, and important values.
+11. Use markdown tables when comparing items or showing data with categories.
+12. Use `code blocks` for code snippets, commands, or syntax.
+13. End EVERY response with a ### Summary section — 2–3 lines max.
+14. If the answer has more than 3 points — use a table or bullet list, NEVER a paragraph.
 
 CONTEXT:
 {retrieved_chunks}
@@ -256,301 +754,126 @@ CONVERSATION HISTORY:
 
 STUDENT QUESTION:
 {query}
-```
-
----
-
-## Phase 1 — Project Setup
-**Day 1 | Risk: LOW**
-
-### Goal
-Get the project skeleton running: folders, environment, CORS tested, health endpoint live, Gemini API verified.
-
-### Files to Create
-| File | What It Does |
-|---|---|
-| backend/app/main.py | FastAPI app with CORS, router includes, startup event |
-| backend/app/config.py | Load all env vars using python-dotenv |
-| backend/.env | All secrets and config values |
-| backend/app/utils/logger.py | Structured logging to file + console |
-| frontend/ | Init with Vite + TailwindCSS |
-
-### Tasks
-- [ ] Create Python virtual environment and install requirements.txt
-- [ ] Set GEMINI_API_KEY in .env and test with a direct Gemini API call
-- [ ] Create `/api/health` returning `{status: "ok", version: "1.0"}`
-- [ ] **Test CORS from browser:** open devtools → `fetch('http://localhost:8000/api/health')` → must return 200 with no CORS error
-- [ ] Init React app with Vite and TailwindCSS (blank page is fine)
-
-### ❌ Do NOT
-- Skip the CORS browser test — this causes 4 hours of debugging on Day 6
-
-### ✅ Done When
-Browser fetch to /api/health returns 200 with no CORS error. Gemini API responds. React blank page loads on localhost:5173.
-
----
-
-## Phase 2 — Robust Ingestion Pipeline
-**Day 2 | Risk: HIGH**
-
-### Goal
-Build PDF-to-FAISS pipeline with scanned page detection, section-aware chunking, and SHA-256 deduplication.
-
-### Files to Create
-| File | What It Does |
-|---|---|
-| backend/app/ingestion/loader.py | PyMuPDF + scanned page detection |
-| backend/app/ingestion/chunking.py | Section-based chunker — heading detection first |
-| backend/app/ingestion/embedder.py | Gemini text-embedding-004 → numpy float32 |
-| backend/app/retrieval/vector_store.py | FAISS IndexFlatIP + SHA-256 dedup |
-| backend/run_ingestion.py | One-time script: ingest all PDFs in data/raw/ |
-
-### Critical Implementation Details
-
-**Fix 1 — Section-Based Chunking**
-```python
-# Detect headings using regex BEFORE applying token limit
-# Heading patterns: ALL CAPS, Title Case, lines starting with "1.", "1.1", "Chapter"
-# Split at section boundaries first
-# Then apply 300-400 token limit WITHIN each section
-# Every chunk must start with its section title as context
-# Libraries: unstructured, layoutparser, or simple regex
-```
-
-**Fix 2 — Scanned Page Detection**
-```python
-# After PyMuPDF extracts each page:
-if len(text.strip()) < 50:
-    flag_as_scanned(page_num)
-    warn_user(f"Page {page_num} appears to be a scan — text may not be searchable.")
-# Add pytesseract OCR as optional fallback
-```
-
-**Fix 3 — SHA-256 Deduplication**
-```python
-import hashlib
-file_hash = hashlib.sha256(file_bytes).hexdigest()
-# Check metadata.json for existing hash
-# If found → skip re-indexing, return "Already indexed"
-# Store hash in metadata.json per document
-```
-
-**Fix 4 — Store Embedding Model Version**
-```python
-# In metadata.json per chunk:
-{
-  "chunk_id": "...",
-  "filename": "OS_notes.pdf",
-  "page": 12,
-  "section_title": "Round Robin Scheduling",
-  "text": "...",
-  "embedding_model_version": "text-embedding-004"  # ALWAYS store this
-}
-```
-
-### Tasks
-- [ ] Gather 10-15 real Woxsen PDFs (mix of digital + scanned)
-- [ ] Test PyMuPDF on each — log which pages are scanned
-- [ ] Implement section-based chunking — print sample chunks to verify structure
-- [ ] Run full ingestion and verify metadata.json is populated with section titles
-- [ ] Verify embedding_model_version is stored per chunk
-
-### ❌ Do NOT
-- Use RecursiveTextSplitter with a single 500-token size on all PDFs
-- Skip SHA-256 hash check — duplicate chunks silently destroy retrieval quality
-
-### ✅ Done When
-FAISS index built. metadata.json has 100+ chunks with section titles. Sample chunks are coherent — not mid-sentence cuts. Scanned pages flagged correctly.
-
----
-
-## Phase 3 — Hybrid Retrieval + Reranker
-**Day 3 | Risk: HIGH**
-
-### Goal
-Build FAISS + BM25 + RRF fusion + CrossEncoder reranker. Test with real questions. Calibrate similarity threshold.
-
-### Files to Create
-| File | What It Does |
-|---|---|
-| backend/app/retrieval/bm25_store.py | rank_bm25 index: build, save as pkl, load, search |
-| backend/app/retrieval/retriever.py | Hybrid: FAISS(20) + BM25(20) → RRF fusion |
-| backend/app/retrieval/reranker.py | CrossEncoder → top 8 (NOT top 3) |
-| experiments.ipynb | Test 10 real Woxsen questions, inspect chunks, calibrate threshold |
-
-### Critical Implementation Details
-
-**Fix — Reranker Top-K = 8**
-```python
-# In reranker.py:
-RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", 8))  # NOT 3
-
-# Pipeline:
-# FAISS(20) + BM25(20) → RRF fusion → CrossEncoder → return top 8
-# Reason: Complex questions need context from multiple pages
-# Gemini Flash handles large context well — more context = better answers
-```
-
-**Fix — Calibrate Threshold (NOT hardcoded 0.75)**
-```python
-# In experiments.ipynb:
-# 1. Run 20 test questions
-# 2. For each: note the FAISS similarity score of the CORRECT chunk
-# 3. Plot distribution of scores
-# 4. Pick threshold that catches 95% of correct answers
-# 5. This calibrated value → SIMILARITY_THRESHOLD in .env
-# It will NOT be 0.75 for Gemini text-embedding-004
-```
-
-### Tasks
-- [ ] Build BM25 index from all chunks in metadata.json
-- [ ] Implement RRF fusion: combine FAISS rank + BM25 rank scores
-- [ ] Load CrossEncoder, rerank top-20 → return top 8
-- [ ] Open experiments.ipynb: test 10 real questions, inspect returned chunks
-- [ ] Run threshold calibration, set SIMILARITY_THRESHOLD in .env
-- [ ] Benchmark CrossEncoder latency — must be under 1 second for 20 candidates
-
-### ❌ Do NOT
-- Hardcode RERANK_TOP_K = 3
-- Use 0.75 as threshold without calibration
-
-### ✅ Done When
-10 test questions retrieve correct, coherent chunks in top-8. Threshold calibrated from data. CrossEncoder latency < 1s.
-
----
-
-## Phase 4 — LangGraph Agent + Query Rewriter + Prompts
-**Day 4 | Risk: HIGH**
-
-### Goal
-Build the complete LangGraph agent. Most importantly: add the Query Rewriter as the first node (missing from most RAG implementations), keyword pre-router, and post-hoc source mapping.
-
-### Files to Create
-| File | What It Does |
-|---|---|
-| backend/app/agent/graph.py | LangGraph StateGraph — all nodes and edges |
-| backend/app/agent/nodes.py | rewriter, router, rag, search, calc, summarizer, clarify, validator, stream |
-| backend/app/agent/tools.py | Tool definitions with Pydantic input schemas |
-| backend/app/agent/router.py | Keyword pre-router + LLM router for ambiguous cases |
-| backend/app/agent/memory.py | Last 5 turns conversation buffer |
-| backend/app/generation/llm.py | Gemini 1.5 Flash: streaming + non-streaming, adapter interface |
-| backend/app/generation/prompt.py | All prompt templates |
-| backend/app/generation/validator.py | Deterministic checks first, LLM validator only on borderline |
-
-### Critical Implementation Details
-
-**Fix 1 — Query Rewriter (FIRST NODE — was missing from original PRD)**
-```python
-# This is the FIRST node in the graph — before router, before retrieval
-# Prompt:
-REWRITER_PROMPT = """
-Rewrite the question as a standalone query using the conversation history.
-If the question is already standalone, return it unchanged.
-
-Conversation History:
-{history}
-
-Question: {query}
-
-Standalone question:
 """
-# Example: "what is it" + history about Round Robin → "What is Round Robin Scheduling?"
-# This fixes ALL vague follow-up questions
+
+FORMATTING_EXAMPLE = """
+Example of correct response format:
+
+Question: What is Round Robin Scheduling?
+
+## Round Robin Scheduling
+
+**Definition:** A CPU scheduling algorithm where each process gets a fixed time slice called a **quantum**.
+
+### Key Properties
+
+| Property | Value |
+|---|---|
+| Type | Preemptive |
+| Starvation | No starvation possible |
+| Best For | Time-sharing systems |
+
+### How It Works
+
+1. All processes placed in a **circular queue**
+2. Each process runs for exactly **one quantum**
+3. If not finished, moves to the **back of the queue**
+
+### Summary
+Round Robin is a preemptive scheduling algorithm using a fixed time quantum. It ensures fairness but has overhead from frequent context switches.
+"""
+
+def build_prompt(query: str, retrieved_chunks: str, memory: str) -> str:
+    return f"""
+{SYSTEM_PROMPT}
+
+{FORMATTING_EXAMPLE}
+
+CONTEXT:
+{retrieved_chunks}
+
+CONVERSATION HISTORY:
+{memory}
+
+STUDENT QUESTION:
+{query}
+
+Respond using proper markdown formatting as shown in the example above.
+"""
 ```
-
-**Fix 2 — Keyword Pre-Router**
-```python
-# Rule-based routing BEFORE hitting the LLM router
-# Handles 90% of cases deterministically — LLM router only for ambiguous
-
-def keyword_pre_route(query: str) -> str | None:
-    q = query.lower()
-    doc_keywords = ["my notes", "uploaded", "syllabus", "lab manual", "my pdf", "my document"]
-    calc_keywords = ["cgpa", "marks", "gpa", "average", "calculate", "percentage"]
-    web_keywords  = ["latest", "current", "news", "today", "recent", "2024", "2025", "2026"]
-
-    if any(k in q for k in doc_keywords): return "document_qa"
-    if any(k in q for k in calc_keywords): return "calculation"
-    if any(k in q for k in web_keywords):  return "web_search"
-    return None  # → pass to LLM router
-```
-
-**Fix 3 — Post-Hoc Source Mapping**
-```python
-# After LLM generates the answer:
-# 1. Split answer into sentences
-# 2. For each sentence: compute cosine similarity with each of the top-8 chunks
-# 3. Assign the highest-scoring chunk as source for that sentence
-# 4. Return sources alongside the answer
-# NEVER instruct the LLM to write [Source: file.pdf, Page X] — it will hallucinate page numbers
-```
-
-**Fix 4 — Conditional Validator**
-```python
-# DO NOT call LLM validator on every answer — doubles cost and latency
-# Step 1: Cheap deterministic check
-#   - Compute token overlap between answer and retrieved chunks
-#   - Compute cosine similarity between answer sentences and chunks
-# Step 2: Only if similarity is borderline (between threshold and threshold+0.10)
-#   → call LLM validator
-# Step 3: For high-confidence retrievals (> threshold + 0.10)
-#   → skip validator entirely
-```
-
-### LangGraph Node Flow
-```
-START
-  → [Query Rewriter Node]       converts vague query to standalone
-  → [Keyword Pre-Router]        rule-based fast routing
-  → [LangGraph Router Node]     LLM routing for ambiguous cases
-      ├── document_qa  → [RAG Node] → Hybrid Retrieval → Reranker(8) → LLM → Source Map
-      ├── web_search   → [Search Node] → DuckDuckGo → LLM
-      ├── calculation  → [Calculator Node] → pure float arithmetic → return result
-      ├── summarize    → [Summarizer Node] → Map-Reduce over chunks → LLM
-      └── unclear      → [Clarify Node] → ask user to rephrase
-  → [Validator Node]            borderline cases only
-  → [Memory Node]               save turn to buffer
-  → [Stream Node]               SSE tokens to React
-END
-```
-
-### Tasks
-- [ ] Implement Query Rewriter as first node — test with 5 follow-up scenarios
-- [ ] Build keyword pre-router with explicit rules
-- [ ] Implement all 5 routing paths in LangGraph
-- [ ] Write anti-hallucination prompt WITHOUT inline [Source:] instructions
-- [ ] Implement post-hoc source mapping (sentence boundary + cosine sim)
-- [ ] Implement deterministic validator — LLM validator only on borderline
-- [ ] Test full agent in Python notebook with 10 queries including follow-ups
-
-### ❌ Do NOT
-- Use `eval()` for CGPA calculator — pure float arithmetic only
-- Call LLM validator on every answer
-- Instruct LLM to write [Source: filename.pdf, Page X] inline
-- Open the LLM router without a keyword pre-filter
-
-### ✅ Done When
-Full agent handles all 5 routing paths. Follow-up questions rewritten correctly. Anti-hallucination prompt active. Sources attached post-hoc. Tested in notebook.
 
 ---
 
-## Phase 5 — FastAPI Routes + SSE Streaming
-**Day 5 | Risk: MEDIUM**
+## Updated .env
 
-### Goal
-Wire LangGraph agent to FastAPI endpoints. Implement SSE streaming. Test all endpoints with curl/Postman before touching the frontend.
+```bash
+# backend/.env — full updated version
 
-### Files to Create
-| File | What It Does |
-|---|---|
-| backend/app/api/schemas.py | Pydantic: ChatRequest, IngestResponse, SourceChunk, ChatStreamEvent |
-| backend/app/api/routes/chat.py | POST /api/chat → SSE StreamingResponse |
-| backend/app/api/routes/ingest.py | POST /api/ingest → multipart PDF → ingestion pipeline |
-| backend/app/api/routes/sources.py | GET/DELETE /api/sources with auth |
+# LLM Providers
+GEMINI_API_KEY=your_key
+GROK_API_KEY=your_key
+OPENROUTER_API_KEY=your_key
+LOCAL_PHI3_URL=http://localhost:11434
+DEFAULT_LLM_PROVIDER=gemini
+DEFAULT_LLM_MODEL=gemini-1.5-flash
 
-### SSE Implementation Pattern
-```python
-# In chat.py — send raw text tokens, then one JSON block for sources
+# MongoDB (NEW)
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB=woxbot
+
+# Retrieval
+CHUNK_SIZE=400
+CHUNK_OVERLAP=80
+RERANK_TOP_K=8
+RETRIEVAL_TOP_K=20
+EMBEDDING_MODEL_VERSION=text-embedding-004
+
+# Agent
+MAX_MEMORY_TURNS=5
+GENERATE_FOLLOWUPS=true
+AUTO_SUMMARIZE_ON_UPLOAD=true
+
+# Paths
+VECTOR_DB_PATH=./vector_db
+DATA_RAW_PATH=./data/raw
+
+# Deploy
+BACKEND_URL=http://localhost:8000
+LOG_LEVEL=INFO
+```
+
+---
+
+## Implementation Order
+
+Do these in order. Each builds on the previous.
+
+| # | Task | Time | Done When |
+|---|---|---|---|
+| 1 | **Formatting fix** — install `remark-gfm`, add `!important` CSS overrides | 30 min | Bold renders in blue. Tables display. Bullets appear. |
+| 2 | **MongoDB** — install motor, create `mongo.py` + `chunk_store.py`, migrate `metadata.json` | 3 hrs | Chunks queryable by `doc_id`. Delete works cleanly. |
+| 3 | **Model preloading** — add `lifespan()`, singleton pattern for all models | 1 hr | Server logs "All systems ready" at startup. First request < 1s. |
+| 4 | **Multi-doc selection** — update `ChatRequest`, filtered retrieval, `DocumentSelector.jsx` | 4 hrs | Checkboxes work. Retrieval only pulls from selected docs. |
+| 5 | **Auto-summary on upload** — `summarizer.py`, show in UI after ingest | 2 hrs | Upload PDF → bot shows summary + 3 suggested questions. |
+| 6 | **Clarify node + Study Planner** — implement nodes, update LangGraph edges | 3 hrs | Vague queries get one clarifying question. Exam queries return study plan. |
+| 7 | **Follow-up suggestions** — `[FOLLOWUPS_START]` SSE event, clickable buttons | 2 hrs | 3 follow-up question buttons appear below each answer. Clicking runs them. |
+
+---
+
+## ✅ Done When (Phase 8 Complete)
+
+- [ ] Bold text renders in blue, bullet points visible, tables display correctly
+- [ ] All document metadata lives in MongoDB — `metadata.json` deprecated
+- [ ] Student can select 2 of 5 uploaded PDFs and retrieval is scoped to those only
+- [ ] First request after server start responds in under 1 second
+- [ ] Uploading a PDF auto-generates a summary with 3 suggested questions
+- [ ] Typing "help me study for OS exam" returns a structured study plan
+- [ ] Vague queries like "explain it" trigger one clarifying question
+- [ ] Every bot answer ends with 3 clickable follow-up question buttons
+
+---
+
+*WoxBot — Phase 8 · Dara Eakeswar Rayudu · Woxsen University · March 2026*.py — send raw text tokens, then one JSON block for sources
 async def generate_stream(query: str, session_id: str):
     async for token in agent.stream(query, session_id):
         yield f"data: {token}\n\n"
@@ -1003,4 +1326,3 @@ ollama run phi3 "Hello"
 | Multiple free quotas at once | OpenRouter (routes across providers) |
 
 > **Important:** Embeddings always use Gemini text-embedding-004 regardless of which LLM provider is selected. The provider dropdown only controls the generation model, not the retrieval/embedding layer.
-

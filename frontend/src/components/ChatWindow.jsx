@@ -81,7 +81,11 @@ export default function ChatWindow({
         ) : (
           <div className="max-w-2xl mx-auto pb-8">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onFollowupClick={onSend}
+              />
             ))}
             <div ref={bottomRef} className="h-2" />
           </div>

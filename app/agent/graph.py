@@ -14,7 +14,8 @@ from typing import Any
 
 from app.agent.nodes import (calc_node, clarify_node, memory_node, rag_node,
                              rewriter_node, router_node, search_node,
-                             summarizer_node, validator_node)
+                             study_planner_node, summarizer_node,
+                             validator_node)
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
@@ -80,6 +81,7 @@ def build_graph() -> StateGraph:
     graph.add_node("calculation", calc_node)
     graph.add_node("summarize", summarizer_node)
     graph.add_node("unclear", clarify_node)
+    graph.add_node("study_planner", study_planner_node)
     graph.add_node("validator", validator_node)
     graph.add_node("memory", memory_node)
 
@@ -101,6 +103,7 @@ def build_graph() -> StateGraph:
             "calculation": "calculation",
             "summarize": "summarize",
             "unclear": "unclear",
+            "study_planner": "study_planner",
         },
     )
 
@@ -110,6 +113,7 @@ def build_graph() -> StateGraph:
     graph.add_edge("calculation", "validator")
     graph.add_edge("summarize", "validator")
     graph.add_edge("unclear", "validator")
+    graph.add_edge("study_planner", "validator")
 
     # validator → memory → END
     graph.add_edge("validator", "memory")

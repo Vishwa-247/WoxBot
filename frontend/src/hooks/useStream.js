@@ -16,10 +16,11 @@ export function useStream() {
   const abortRef = useRef(null);
   const [tokens, setTokens] = useState("");
   const [sources, setSources] = useState([]);
+  const [followups, setFollowups] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
 
   const startStream = useCallback(
-    async (query, sessionId, provider = "groq", model = null) => {
+    async (query, sessionId, provider = "groq", model = null, selectedDocIds = []) => {
       // Guard: cancel any in-flight stream before starting a new one
       if (abortRef.current) {
         abortRef.current.abort();
@@ -28,6 +29,7 @@ export function useStream() {
 
       setTokens("");
       setSources([]);
+      setFollowups([]);
       setIsStreaming(true);
 
       const controller = new AbortController();
@@ -45,6 +47,7 @@ export function useStream() {
             session_id: sessionId,
             provider,
             model,
+            selected_doc_ids: selectedDocIds,
           }),
           signal: controller.signal,
         });
@@ -58,6 +61,7 @@ export function useStream() {
         const dec = new TextDecoder();
         let buf = "";
         let inSources = false;
+        let inFollowups = false;
         let streamDone = false;
 
         const processLine = (line) => {
@@ -82,6 +86,22 @@ export function useStream() {
               /* malformed JSON — skip */
             }
             inSources = false;
+            return;
+          }
+
+          if (data === "[FOLLOWUPS_START]") {
+            inFollowups = true;
+            return;
+          }
+
+          if (inFollowups) {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.questions) setFollowups(parsed.questions);
+            } catch (_) {
+              /* malformed JSON — skip */
+            }
+            inFollowups = false;
             return;
           }
 
@@ -128,5 +148,5 @@ export function useStream() {
     setIsStreaming(false);
   }, []);
 
-  return { tokens, sources, isStreaming, startStream, stopStream };
+  return { tokens, sources, followups, isStreaming, startStream, stopStream };
 }

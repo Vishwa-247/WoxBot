@@ -23,7 +23,8 @@ from app.agent.tools import (format_search_results, map_sources,
 from app.generation import llm
 from app.generation.prompt import (CLARIFY_PROMPT, FORMATTING_EXAMPLE,
                                    RAG_SYSTEM_MSG, RAG_USER_MSG,
-                                   REWRITER_PROMPT, SUMMARIZER_SYSTEM_MSG,
+                                   REWRITER_PROMPT, STUDY_PLAN_PROMPT,
+                                   SUMMARIZER_SYSTEM_MSG,
                                    SUMMARIZER_USER_MSG, WEB_SEARCH_SYSTEM_MSG,
                                    WEB_SEARCH_USER_MSG)
 from app.generation.validator import validate
@@ -222,16 +223,42 @@ def summarizer_node(state: dict[str, Any]) -> dict[str, Any]:
 
 def clarify_node(state: dict[str, Any]) -> dict[str, Any]:
     """
-    Clarify Node — Ask user to rephrase unclear query.
+    Clarify Node — Ask ONE specific clarifying question.
+    Includes available document list for context-aware clarification.
     """
     query = state.get("rewritten_query", state["query"])
-    prompt = CLARIFY_PROMPT.format(query=query)
+    doc_list = state.get("available_docs", "No documents uploaded yet")
+    if isinstance(doc_list, list):
+        doc_list = ", ".join(doc_list) if doc_list else "No documents uploaded yet"
+    prompt = CLARIFY_PROMPT.format(query=query, doc_list=doc_list)
     answer = llm.generate(
         prompt,
         provider=state.get("provider"),
         model=state.get("model"),
     )
     logger.info("Clarify: asking user to rephrase.")
+    return {"answer": answer, "sources": [], "chunks": []}
+
+
+def study_planner_node(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Study Planner Node — builds a structured study plan from uploaded docs.
+    """
+    query = state.get("rewritten_query", state["query"])
+    doc_summaries = state.get("doc_summaries", "No document summaries available.")
+    if isinstance(doc_summaries, list):
+        doc_summaries = "\n\n".join(
+            f"**{s.get('filename', 'Unknown')}**:\n{s.get('summary', 'No summary')}"
+            for s in doc_summaries
+        ) if doc_summaries else "No document summaries available."
+
+    prompt = STUDY_PLAN_PROMPT.format(query=query, doc_summaries=doc_summaries)
+    answer = llm.generate(
+        prompt,
+        provider=state.get("provider"),
+        model=state.get("model"),
+    )
+    logger.info("Study Planner: generated plan for query='%s'", query)
     return {"answer": answer, "sources": [], "chunks": []}
 
 

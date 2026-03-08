@@ -11,6 +11,8 @@ services:
       - ./vector_db:/app/vector_db
       - ./data:/app/data
       - ./logs:/app/logs
+    depends_on:
+      - mongodb
     restart: unless-stopped
 
   frontend:
@@ -20,3 +22,14 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:

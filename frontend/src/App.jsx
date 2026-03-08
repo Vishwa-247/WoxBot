@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import ChatWindow from "./components/ChatWindow";
 import DocumentLibrary from "./components/DocumentLibrary";
+import DocumentSelector from "./components/DocumentSelector";
 import { loadSavedModel } from "./components/ModelSelector";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -20,6 +21,8 @@ export default function App() {
     isStreaming,
     sessionId,
     chatHistory,
+    selectedDocIds,
+    setSelectedDocIds,
     sendMessage,
     stopStream,
     clearChat,
@@ -141,7 +144,7 @@ export default function App() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — chat history */}
+        {/* Left sidebar — chat history + doc selector */}
         <Sidebar
           open={sidebarOpen}
           onToggle={() => setSidebarOpen((o) => !o)}
@@ -150,7 +153,13 @@ export default function App() {
           activeSessionId={sessionId}
           onLoadSession={loadSession}
           onDeleteSession={deleteSession}
-        />
+        >
+          <DocumentSelector
+            selectedDocIds={selectedDocIds}
+            onSelectionChange={setSelectedDocIds}
+            refreshTrigger={libRefresh}
+          />
+        </Sidebar>
 
         {/* Main chat area */}
         <main className="flex flex-1 overflow-hidden">

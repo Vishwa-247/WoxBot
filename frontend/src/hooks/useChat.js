@@ -27,7 +27,9 @@ export function useChat() {
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState(() => "sess_" + genId());
   const [chatHistory, setChatHistory] = useState(loadHistory);
-  const { tokens, sources, isStreaming, startStream, stopStream } = useStream();
+  const [selectedDocIds, setSelectedDocIds] = useState([]);
+  const { tokens, sources, followups, isStreaming, startStream, stopStream } =
+    useStream();
   const botIdRef = useRef(null);
 
   // Persist current session to history whenever messages change (non-streaming)
@@ -71,7 +73,9 @@ export function useChat() {
       const id = botIdRef.current;
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === id ? { ...m, sources: sources, streaming: false } : m,
+          m.id === id
+            ? { ...m, sources: sources, followups: followups, streaming: false }
+            : m,
         ),
       );
       botIdRef.current = null;
@@ -100,9 +104,9 @@ export function useChat() {
       };
 
       setMessages((prev) => [...prev, userMsg, botMsg]);
-      startStream(query.trim(), sessionId, provider, model);
+      startStream(query.trim(), sessionId, provider, model, selectedDocIds);
     },
-    [isStreaming, sessionId, startStream],
+    [isStreaming, sessionId, startStream, selectedDocIds],
   );
 
   const clearChat = useCallback(() => {
@@ -137,6 +141,8 @@ export function useChat() {
     sessionId,
     isStreaming,
     chatHistory,
+    selectedDocIds,
+    setSelectedDocIds,
     sendMessage,
     stopStream,
     clearChat,

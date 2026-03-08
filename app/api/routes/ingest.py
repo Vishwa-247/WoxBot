@@ -13,11 +13,13 @@ from pathlib import Path
 
 from app.api.schemas import IngestResponse
 from app.core.config import get_settings
+from app.db import chunk_store
 from app.ingestion.chunking import chunk_document
 from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import load_pdf
+from app.ingestion.summarizer import generate_doc_summary
 from app.retrieval.bm25_store import build_and_save as build_bm25
-from app.retrieval.vector_store import build_and_save, is_already_indexed
+from app.retrieval.vector_store import build_and_save, compute_file_hash, is_already_indexed
 from fastapi import APIRouter, File, UploadFile
 
 logger = logging.getLogger("woxbot")
@@ -93,6 +95,37 @@ async def ingest_pdf(file: UploadFile = File(...)):
     except Exception as e:
         logger.warning("BM25 rebuild failed: %s", e)
 
+    # ── Persist to MongoDB ───────────────────────────────
+    file_hash = compute_file_hash(dest_path)
+
+    # Save document record
+    await chunk_store.save_document({
+        "_id": file_hash,
+        "filename": file.filename,
+        "total_pages": pdf_doc.total_pages,
+        "scanned_pages": pdf_doc.scanned_pages,
+        "chunk_count": added,
+    })
+
+    # Save chunk records
+    chunk_dicts = [
+        {
+            "doc_id": file_hash,
+            "chunk_id": c.chunk_id,
+            "filename": c.filename,
+            "page": c.page,
+            "section_title": c.section_title,
+            "text": c.text,
+            "token_count": c.token_count,
+            "embedding_model_version": settings.embedding_model_version,
+        }
+        for c in chunks
+    ]
+    await chunk_store.save_chunks(chunk_dicts)
+
+    # ── Auto-generate document summary ───────────────────
+    summary = await generate_doc_summary(file_hash, chunk_dicts)
+
     logger.info(
         "Ingested '%s': %d chunks, %d pages, %d scanned.",
         file.filename,
@@ -107,4 +140,5 @@ async def ingest_pdf(file: UploadFile = File(...)):
         total_pages=pdf_doc.total_pages,
         scanned_pages=pdf_doc.scanned_pages,
         message=f"Successfully indexed {added} chunks from {pdf_doc.total_pages} pages.",
+        summary=summary,
     )

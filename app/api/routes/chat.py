@@ -21,7 +21,9 @@ from app.agent.graph import run_agent
 from app.agent.tools import (format_search_results, map_sources,
                              safe_calculate, web_search)
 from app.api.schemas import ChatRequest, ChatResponse
+from app.db import chunk_store
 from app.generation import llm
+from app.generation.followups import generate_followups
 from app.generation.prompt import (CLARIFY_PROMPT, FORMATTING_EXAMPLE,
                                    RAG_SYSTEM_MSG, RAG_USER_MSG,
                                    SUMMARIZER_SYSTEM_MSG, SUMMARIZER_USER_MSG,
@@ -42,6 +44,7 @@ async def _generate_stream(
     session_id: str,
     provider: str | None,
     model: str | None,
+    selected_doc_ids: list[str] | None = None,
 ):
     """
     SSE generator — runs the agent pipeline with streaming LLM output.
@@ -65,6 +68,17 @@ async def _generate_stream(
     chunks = []
     answer_text = ""
 
+    # Resolve selected_doc_ids to filenames for retrieval filtering
+    selected_filenames = None
+    if selected_doc_ids:
+        selected_filenames = []
+        for doc_id in selected_doc_ids:
+            doc = await chunk_store.get_document(doc_id)
+            if doc:
+                selected_filenames.append(doc["filename"])
+        if not selected_filenames:
+            selected_filenames = None
+
     try:
         if route == "calculation":
             # Calculator — no streaming needed, instant result
@@ -73,8 +87,23 @@ async def _generate_stream(
             answer_text = result
 
         elif route == "unclear":
-            # Clarify — stream the clarification
-            prompt = CLARIFY_PROMPT.format(query=query)
+            # Clarify — stream the clarification with doc context
+            docs = await chunk_store.list_documents()
+            doc_list = ", ".join(d.get("filename", "") for d in docs) if docs else "No documents uploaded yet"
+            prompt = CLARIFY_PROMPT.format(query=query, doc_list=doc_list)
+            async for token in llm.stream(prompt, provider=provider, model=model):
+                yield f"data: {token}\n\n"
+                answer_text += token
+
+        elif route == "study_planner":
+            # Study Planner — build a structured study plan from doc summaries
+            docs = await chunk_store.list_documents()
+            doc_summaries = "\n\n".join(
+                f"**{d.get('filename', 'Unknown')}**:\n{d.get('summary', 'No summary available')}"
+                for d in docs
+            ) if docs else "No documents uploaded yet."
+            from app.generation.prompt import STUDY_PLAN_PROMPT
+            prompt = STUDY_PLAN_PROMPT.format(query=query, doc_summaries=doc_summaries)
             async for token in llm.stream(prompt, provider=provider, model=model):
                 yield f"data: {token}\n\n"
                 answer_text += token
@@ -102,7 +131,7 @@ async def _generate_stream(
 
         elif route == "summarize":
             # Summarize — retrieve chunks, then stream
-            candidates = hybrid_retrieve(query, top_k=30)
+            candidates = hybrid_retrieve(query, top_k=30, selected_filenames=selected_filenames)
             chunks = rerank(query, candidates, top_k=8)
             if not chunks:
                 msg = "I don't have enough document content to summarize."
@@ -120,7 +149,7 @@ async def _generate_stream(
 
         else:
             # document_qa (default) — full RAG pipeline with streaming
-            candidates = hybrid_retrieve(query)
+            candidates = hybrid_retrieve(query, selected_filenames=selected_filenames)
             chunks = rerank(query, candidates)
             if not chunks:
                 msg = "I don't have enough information in the uploaded documents to answer this."
@@ -173,6 +202,16 @@ async def _generate_stream(
         yield "data: [SOURCES_START]\n\n"
         yield f"data: {json.dumps({'chunks': sources})}\n\n"
 
+    # Generate and send follow-up suggestions
+    if answer_text and route != "calculation":
+        try:
+            followups = generate_followups(query, answer_text, provider=provider, model=model)
+            if followups:
+                yield "data: [FOLLOWUPS_START]\n\n"
+                yield f"data: {json.dumps({'questions': followups})}\n\n"
+        except Exception as e:
+            logger.debug("Follow-up generation failed: %s", e)
+
     # Save to memory
     memory.save_turn(session_id, query, answer_text)
 
@@ -193,6 +232,7 @@ async def chat(request: ChatRequest):
             session_id=request.session_id,
             provider=request.provider,
             model=request.model,
+            selected_doc_ids=request.selected_doc_ids,
         ),
         media_type="text/event-stream",
         headers={

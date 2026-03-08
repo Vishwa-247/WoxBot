@@ -227,6 +227,52 @@ def search(query_embedding: np.ndarray, top_k: int | None = None) -> list[dict]:
     return results
 
 
+def search_filtered(
+    query_embedding: np.ndarray,
+    allowed_filenames: set[str],
+    top_k: int | None = None,
+) -> list[dict]:
+    """
+    Search FAISS index but only return chunks from allowed filenames.
+
+    Uses over-retrieval + post-filter (works with IndexFlatIP).
+    """
+    settings = get_settings()
+    if top_k is None:
+        top_k = settings.retrieval_top_k
+
+    result = load_index()
+    if result is None:
+        return []
+
+    index, metadata = result
+    chunks_meta = metadata.get("chunks", [])
+
+    faiss.normalize_L2(query_embedding)
+
+    # Over-retrieve to compensate for filtering
+    k = min(top_k * 5, index.ntotal)
+    if k == 0:
+        return []
+
+    scores, indices = index.search(query_embedding, k)
+
+    results = []
+    for score, idx in zip(scores[0], indices[0]):
+        if idx < 0 or idx >= len(chunks_meta):
+            continue
+        chunk = chunks_meta[idx]
+        if chunk.get("filename") not in allowed_filenames:
+            continue
+        entry = chunk.copy()
+        entry["score"] = float(score)
+        results.append(entry)
+        if len(results) >= top_k:
+            break
+
+    return results
+
+
 def delete_document(filename: str) -> int:
     """
     Remove all chunks for a document and rebuild the FAISS index.

@@ -193,10 +193,37 @@ Answer using the formatting rules from your instructions. Structure the response
 # ── Clarification Prompt ────────────────────────────────────────────
 
 CLARIFY_PROMPT = """\
-The user's question is unclear or too vague to route properly.
-Generate a brief, friendly clarification request.
-Ask the user to be more specific about what they need help with.
+You are WoxBot. The student's question is vague or too broad to answer from documents.
+Ask ONE specific clarifying question to understand what they need.
 
-Original question: {query}
+Available documents: {doc_list}
+Student asked: {query}
+
+Rules:
+- Ask ONLY ONE question — never two
+- Make it specific (not generic "can you clarify?")
+- Offer 2–3 example options in your question if helpful
+- Never say "I don't understand"
+- Keep it under 2 sentences
 
 Clarification request:"""
+
+
+# ── Study Planner Prompt ────────────────────────────────────────────
+
+STUDY_PLAN_PROMPT = """\
+You are WoxBot, an academic advisor for Woxsen University.
+Student query: {query}
+Available documents and their summaries:
+{doc_summaries}
+
+Create a structured study plan using ONLY the uploaded documents:
+
+## Study Plan
+### High Priority Topics (must know)
+### Suggested Study Order
+### Time Estimate per Topic
+### Key Concepts to Review
+### 5 Practice Questions from Your Notes
+
+Use bullet points and tables. Be specific — reference actual topics from the documents."""

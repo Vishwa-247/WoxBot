@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
     # ── MongoDB (conversation memory persistence) ────────────────────
     mongodb_uri: str = Field(default="")
+    mongodb_db: str = Field(default="woxbot")
 
     # ── Paths ────────────────────────────────────────────
     vector_db_path: str = Field(default="./vector_db")

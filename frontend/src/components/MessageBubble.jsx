@@ -256,7 +256,7 @@ function SourceCircles({ sources }) {
 
 // ── Main Bubble ─────────────────────────────────────────────────────
 
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, onFollowupClick }) {
   const isUser = message.role === "user";
   const formattedContent = normalizeMarkdown(message.content);
 
@@ -265,6 +265,12 @@ export default function MessageBubble({ message }) {
     !message.streaming &&
     message.sources &&
     message.sources.length > 0;
+
+  const hasFollowups =
+    !isUser &&
+    !message.streaming &&
+    message.followups &&
+    message.followups.length > 0;
 
   if (isUser) {
     return (
@@ -295,6 +301,19 @@ export default function MessageBubble({ message }) {
           </div>
         )}
         {hasSources && <SourceCircles sources={message.sources} />}
+        {hasFollowups && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {message.followups.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => onFollowupClick?.(q)}
+                className="text-xs bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

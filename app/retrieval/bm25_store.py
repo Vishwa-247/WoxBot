@@ -120,3 +120,41 @@ def search(query: str, top_k: int | None = None) -> list[dict]:
             results.append(chunk)
 
     return results
+
+
+def search_filtered(query: str, allowed_filenames: set[str], top_k: int | None = None) -> list[dict]:
+    """
+    Search BM25, returning only chunks from allowed filenames.
+    """
+    settings = get_settings()
+    if top_k is None:
+        top_k = settings.retrieval_top_k
+
+    bm25 = load_index()
+    if bm25 is None:
+        return []
+
+    _, _, meta_path = _get_paths()
+    with open(meta_path, "r", encoding="utf-8") as f:
+        metadata = json.load(f)
+
+    chunks_meta = metadata.get("chunks", [])
+
+    query_tokens = _tokenize(query)
+    scores = bm25.get_scores(query_tokens)
+
+    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+
+    results = []
+    for idx in top_indices:
+        if idx < len(chunks_meta) and scores[idx] > 0:
+            chunk = chunks_meta[idx]
+            if chunk.get("filename") not in allowed_filenames:
+                continue
+            entry = chunk.copy()
+            entry["bm25_score"] = float(scores[idx])
+            results.append(entry)
+            if len(results) >= top_k:
+                break
+
+    return results
